@@ -9,8 +9,37 @@ class TimeTracker:
     def __init__(self):
         self.storage = Storage()
     
+    def _validate_task_name(self, task: str) -> Optional[str]:
+        """
+        Validate task name.
+        Returns error message if invalid, None if valid.
+        """
+        # Check for empty or whitespace-only
+        if not task or not task.strip():
+            return "❌ Task name cannot be empty"
+        
+        # Check length
+        if len(task) > 100:
+            return f"❌ Task name too long ({len(task)} chars, max 100)"
+        
+        # Check for problematic characters
+        forbidden_chars = ['\n', '\r', '\t']
+        for char in forbidden_chars:
+            if char in task:
+                return f"❌ Task name contains invalid character: {repr(char)}"
+        
+        return None  # Valid
+    
     def start(self, task: str) -> str:
         """Start tracking a new task."""
+        # Validate task name
+        validation_error = self._validate_task_name(task)
+        if validation_error:
+            return validation_error
+        
+        # Trim whitespace
+        task = task.strip()
+        
         active = self.storage.load_active_session()
         
         if active:
@@ -27,9 +56,20 @@ class TimeTracker:
         if not active:
             return "❌ No active session to stop"
         
-        start_time = datetime.fromisoformat(active['start_time'])
+        try:
+            start_time = datetime.fromisoformat(active['start_time'])
+        except (ValueError, KeyError) as e:
+            return "❌ Error: Active session has invalid data. Clearing it."
+        
         end_time = datetime.now()
         duration = end_time - start_time
+        
+        # Sanity check: duration should be positive and reasonable
+        if duration.total_seconds() < 0:
+            return "❌ Error: Invalid session duration (negative time)"
+        
+        if duration.total_seconds() > 86400 * 7:  # More than 7 days
+            return "⚠️  Warning: Session longer than 7 days. Did you forget to stop? Session not saved."
         
         self.storage.save_completed_session(
             task=active['task'],
@@ -52,7 +92,11 @@ class TimeTracker:
         if not active:
             return "No active session"
         
-        start_time = datetime.fromisoformat(active['start_time'])
+        try:
+            start_time = datetime.fromisoformat(active['start_time'])
+        except (ValueError, KeyError):
+            return "❌ Error: Active session has invalid data"
+        
         elapsed = datetime.now() - start_time
         
         hours, remainder = divmod(int(elapsed.total_seconds()), 3600)
@@ -70,28 +114,37 @@ class TimeTracker:
         # Filter by date if specified
         target_date = date if date else datetime.now().date().isoformat()
         
-        filtered_sessions = [
-            s for s in history 
-            if s['start_time'].startswith(target_date)
-        ]
+        filtered_sessions = []
+        for session in history:
+            try:
+                if session['start_time'].startswith(target_date):
+                    filtered_sessions.append(session)
+            except (KeyError, TypeError):
+                # Skip malformed sessions
+                continue
         
         if not filtered_sessions:
             return f"No sessions on {target_date}"
         
-        total_seconds = sum(s['duration_seconds'] for s in filtered_sessions)
+        total_seconds = sum(s.get('duration_seconds', 0) for s in filtered_sessions)
         total_hours, remainder = divmod(total_seconds, 3600)
         total_minutes, _ = divmod(remainder, 60)
         
         output = [f"📊 Report for {target_date}", "=" * 40]
         
         for session in filtered_sessions:
-            start = datetime.fromisoformat(session['start_time'])
-            hours, remainder = divmod(session['duration_seconds'], 3600)
-            minutes, _ = divmod(remainder, 60)
-            
-            output.append(
-                f"{start.strftime('%H:%M')} | {session['task']} | {hours}h {minutes}m"
-            )
+            try:
+                start = datetime.fromisoformat(session['start_time'])
+                hours, remainder = divmod(session['duration_seconds'], 3600)
+                minutes, _ = divmod(remainder, 60)
+                
+                output.append(
+                    f"{start.strftime('%H:%M')} | {session['task']} | {hours}h {minutes}m"
+                )
+            except (ValueError, KeyError, TypeError):
+                # Skip malformed entries
+                output.append(f"[Corrupted entry - skipped]")
+                continue
         
         output.append("=" * 40)
         output.append(f"Total: {total_hours}h {total_minutes}m")

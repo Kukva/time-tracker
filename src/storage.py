@@ -20,11 +20,24 @@ class Storage:
             json.dump(data, f, indent=2)
     
     def load_active_session(self) -> Optional[Dict]:
-        """Load active session if exists."""
+        """Load active session if exists. Returns None if corrupted."""
         if not self.active_file.exists():
             return None
-        with open(self.active_file, 'r') as f:
-            return json.load(f)
+        
+        try:
+            with open(self.active_file, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            # JSON corrupted - log and return None
+            print(f"⚠️  Warning: Active session file corrupted. Starting fresh.")
+            # Backup corrupted file
+            backup_path = self.active_file.with_suffix('.json.backup')
+            try:
+                self.active_file.rename(backup_path)
+                print(f"   Corrupted file backed up to: {backup_path}")
+            except Exception:
+                pass
+            return None
     
     def clear_active_session(self) -> None:
         """Remove active session file."""
@@ -44,12 +57,38 @@ class Storage:
         history = self.load_history()
         history.append(session)
         
+        # Backup existing file before writing
+        if self.history_file.exists():
+            backup_path = self.history_file.with_suffix('.json.bak')
+            try:
+                import shutil
+                shutil.copy2(self.history_file, backup_path)
+            except Exception:
+                pass  # Continue even if backup fails
+        
         with open(self.history_file, 'w') as f:
             json.dump(history, f, indent=2)
     
     def load_history(self) -> List[Dict]:
-        """Load all completed sessions."""
+        """Load all completed sessions. Returns empty list if corrupted."""
         if not self.history_file.exists():
             return []
-        with open(self.history_file, 'r') as f:
-            return json.load(f)
+        
+        try:
+            with open(self.history_file, 'r') as f:
+                data = json.load(f)
+                # Validate that it's a list
+                if not isinstance(data, list):
+                    print("⚠️  Warning: History file has invalid format. Starting fresh.")
+                    return []
+                return data
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"⚠️  Warning: History file corrupted. Starting fresh.")
+            # Backup corrupted file
+            backup_path = self.history_file.with_suffix('.json.corrupted')
+            try:
+                self.history_file.rename(backup_path)
+                print(f"   Corrupted file backed up to: {backup_path}")
+            except Exception:
+                pass
+            return []
