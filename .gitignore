@@ -5,3 +5,10 @@ venv/
 .env
 *.json
 !example.json
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# Temporary Claude files
+tmpclaude-*-cwd
