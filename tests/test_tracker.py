@@ -214,6 +214,160 @@ def test_stop_with_invalid_active_session(tracker):
     """Test stopping when active session has invalid data."""
     # Create session with invalid timestamp
     tracker.storage.save_active_session("test", "invalid-timestamp")
-    
+
     result = tracker.stop()
     assert "Error" in result or "invalid" in result.lower()
+
+
+# ============ CSV EXPORT TESTS ============
+
+def test_export_csv_with_sessions(tracker, tmp_path):
+    """Test exporting sessions to CSV file."""
+    # Add test sessions
+    today = datetime.now().date().isoformat()
+    tracker.storage.save_completed_session(
+        task="morning work",
+        start_time=f"{today}T09:00:00",
+        end_time=f"{today}T11:00:00",
+        duration_seconds=7200
+    )
+    tracker.storage.save_completed_session(
+        task="afternoon work",
+        start_time=f"{today}T14:00:00",
+        end_time=f"{today}T16:30:00",
+        duration_seconds=9000
+    )
+
+    output_file = tmp_path / "test_export.csv"
+    result = tracker.export_csv(str(output_file))
+
+    assert "Exported" in result
+    assert "2 sessions" in result
+    assert output_file.exists()
+
+    # Verify CSV content
+    import csv
+    with open(output_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    assert len(rows) == 2
+    assert rows[0]['task'] == "morning work"
+    assert rows[0]['duration_hours'] == "2"
+    assert rows[1]['task'] == "afternoon work"
+
+
+def test_export_csv_no_sessions(tracker, tmp_path):
+    """Test export when no sessions exist."""
+    output_file = tmp_path / "empty_export.csv"
+    result = tracker.export_csv(str(output_file))
+
+    assert "No sessions to export" in result
+    assert not output_file.exists()
+
+
+def test_export_csv_with_date_filter(tracker, tmp_path):
+    """Test CSV export with date range filtering."""
+    # Add sessions from different dates
+    tracker.storage.save_completed_session(
+        task="old task",
+        start_time="2026-01-01T10:00:00",
+        end_time="2026-01-01T11:00:00",
+        duration_seconds=3600
+    )
+    tracker.storage.save_completed_session(
+        task="recent task",
+        start_time="2026-01-14T10:00:00",
+        end_time="2026-01-14T11:00:00",
+        duration_seconds=3600
+    )
+
+    output_file = tmp_path / "filtered_export.csv"
+    result = tracker.export_csv(
+        str(output_file),
+        start_date="2026-01-10",
+        end_date="2026-01-20"
+    )
+
+    assert "Exported 1 sessions" in result
+    assert output_file.exists()
+
+    # Verify only recent task in CSV
+    import csv
+    with open(output_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    assert len(rows) == 1
+    assert rows[0]['task'] == "recent task"
+
+
+def test_export_csv_auto_adds_extension(tracker, tmp_path):
+    """Test that .csv extension is added automatically."""
+    # Add a session
+    today = datetime.now().date().isoformat()
+    tracker.storage.save_completed_session(
+        task="test",
+        start_time=f"{today}T10:00:00",
+        end_time=f"{today}T11:00:00",
+        duration_seconds=3600
+    )
+
+    output_file = tmp_path / "report"  # No extension
+    result = tracker.export_csv(str(output_file))
+
+    assert "Exported" in result
+    # Should create report.csv
+    csv_file = tmp_path / "report.csv"
+    assert csv_file.exists()
+
+
+def test_export_csv_default_filename(tracker):
+    """Test export with default filename."""
+    # Add a session
+    today = datetime.now().date().isoformat()
+    tracker.storage.save_completed_session(
+        task="test",
+        start_time=f"{today}T10:00:00",
+        end_time=f"{today}T11:00:00",
+        duration_seconds=3600
+    )
+
+    result = tracker.export_csv()
+
+    assert "Exported" in result
+    assert "time_tracker_export.csv" in result
+
+
+def test_export_csv_skips_corrupted_sessions(tracker, tmp_path):
+    """Test that export handles corrupted session data gracefully."""
+    # Add valid session
+    today = datetime.now().date().isoformat()
+    tracker.storage.save_completed_session(
+        task="valid task",
+        start_time=f"{today}T10:00:00",
+        end_time=f"{today}T11:00:00",
+        duration_seconds=3600
+    )
+
+    # Manually add corrupted session
+    history = tracker.storage.load_history()
+    history.append({"invalid": "data"})
+    import json
+    with open(tracker.storage.history_file, 'w') as f:
+        json.dump(history, f)
+
+    output_file = tmp_path / "export_with_corruption.csv"
+    result = tracker.export_csv(str(output_file))
+
+    # Should still export valid session
+    assert "Exported" in result
+    assert output_file.exists()
+
+    import csv
+    with open(output_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    assert len(rows) == 1
+    assert rows[0]['task'] == "valid task"

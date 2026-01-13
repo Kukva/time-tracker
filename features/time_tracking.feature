@@ -34,3 +34,28 @@ Feature: Track work time
     When I run "track report today"
     Then I should see list of all sessions
     And I should see total time worked
+
+  Scenario: Export sessions to CSV
+    Given I have completed sessions in history
+    When I run "track export"
+    Then a CSV file should be created
+    And CSV file should contain session data
+    And I should see success message with file path
+
+  Scenario: Export sessions with date filter
+    Given I have sessions from multiple dates
+    When I run "track export --start-date 2026-01-01 --end-date 2026-01-31"
+    Then CSV should only contain sessions in date range
+    And I should see count of exported sessions
+
+  Scenario: Export to custom file path
+    Given I have completed sessions
+    When I run "track export -o my_report.csv"
+    Then file should be created at "my_report.csv"
+    And file should have .csv extension
+
+  Scenario: Export with no sessions
+    Given I have no completed sessions
+    When I run "track export"
+    Then I should see error "No sessions to export"
+    And no CSV file should be created

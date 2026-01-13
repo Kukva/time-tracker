@@ -1,6 +1,8 @@
 import click
+import csv
 from datetime import datetime, timedelta
 from typing import Optional
+from pathlib import Path
 from .storage import Storage
 
 class TimeTracker:
@@ -148,8 +150,85 @@ class TimeTracker:
         
         output.append("=" * 40)
         output.append(f"Total: {total_hours}h {total_minutes}m")
-        
+
         return "\n".join(output)
+
+    def export_csv(self, output_file: Optional[str] = None,
+                   start_date: Optional[str] = None,
+                   end_date: Optional[str] = None) -> str:
+        """
+        Export sessions to CSV file.
+
+        Args:
+            output_file: Path to output CSV file (defaults to ./time_tracker_export.csv)
+            start_date: Filter sessions from this date (YYYY-MM-DD format)
+            end_date: Filter sessions until this date (YYYY-MM-DD format)
+
+        Returns:
+            Success/error message
+        """
+        history = self.storage.load_history()
+
+        if not history:
+            return "❌ No sessions to export"
+
+        # Filter by date range if specified
+        filtered_sessions = []
+        for session in history:
+            try:
+                session_date = session['start_time'][:10]  # Extract YYYY-MM-DD
+
+                # Check date range
+                if start_date and session_date < start_date:
+                    continue
+                if end_date and session_date > end_date:
+                    continue
+
+                filtered_sessions.append(session)
+            except (KeyError, TypeError, IndexError):
+                # Skip malformed sessions
+                continue
+
+        if not filtered_sessions:
+            return "❌ No sessions found in specified date range"
+
+        # Set default output file
+        if not output_file:
+            output_file = "time_tracker_export.csv"
+
+        # Ensure .csv extension
+        output_path = Path(output_file)
+        if output_path.suffix.lower() != '.csv':
+            output_path = output_path.with_suffix('.csv')
+
+        try:
+            # Write CSV
+            with open(output_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=[
+                    'task', 'start_time', 'end_time', 'duration_hours', 'duration_minutes'
+                ])
+                writer.writeheader()
+
+                for session in filtered_sessions:
+                    try:
+                        hours, remainder = divmod(session['duration_seconds'], 3600)
+                        minutes, _ = divmod(remainder, 60)
+
+                        writer.writerow({
+                            'task': session['task'],
+                            'start_time': session['start_time'],
+                            'end_time': session['end_time'],
+                            'duration_hours': hours,
+                            'duration_minutes': minutes
+                        })
+                    except (KeyError, TypeError):
+                        # Skip malformed entries
+                        continue
+
+            return f"✓ Exported {len(filtered_sessions)} sessions to {output_path.absolute()}"
+
+        except (IOError, PermissionError) as e:
+            return f"❌ Error writing CSV file: {e}"
 
 
 @click.group()
@@ -186,6 +265,16 @@ def report(date):
     """Show report for date (defaults to today)."""
     tracker = TimeTracker()
     click.echo(tracker.report(date))
+
+
+@cli.command()
+@click.option('--output', '-o', default=None, help='Output CSV file path')
+@click.option('--start-date', default=None, help='Start date (YYYY-MM-DD)')
+@click.option('--end-date', default=None, help='End date (YYYY-MM-DD)')
+def export(output, start_date, end_date):
+    """Export sessions to CSV file."""
+    tracker = TimeTracker()
+    click.echo(tracker.export_csv(output, start_date, end_date))
 
 
 if __name__ == '__main__':
