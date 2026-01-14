@@ -9,6 +9,11 @@
 - [x] CSV export with date filtering (#8)
 - [x] Weekly reports (#2)
 - [x] Monthly reports (#2)
+- [x] **Tags/Categories** for sessions
+  - Multiple tags per session: `--tag work --tag python`
+  - Filter reports by tag: `--tag client`
+  - Filter exports by tag
+  - Tags displayed in status and reports
 
 ### User Interface
 - [x] Interactive CLI mode
@@ -24,10 +29,11 @@
   - Config stored in ~/.timetracker/telegram.json
 
 ### Testing & Quality
-- [x] Unit tests (50+ tests)
-- [x] BDD tests with pytest-bdd (29 scenarios)
+- [x] Unit tests (60+ tests)
+- [x] BDD tests with pytest-bdd (33 scenarios)
 - [x] TUI component tests (16 tests)
 - [x] Telegram bot tests (18 tests)
+- [x] Tags tests (8 tests)
 - [x] Test coverage >80%
 
 ## In Progress

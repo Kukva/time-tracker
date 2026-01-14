@@ -20,6 +20,7 @@ See [GitHub Issues](../../issues) for full project history and roadmap.
 - [x] Interactive CLI mode
 - [x] **Rich TUI Dashboard** with live timer (#13, #14, #15)
 - [x] **Telegram Bot** with reminders (#17, #18, #19)
+- [x] **Tags/Categories** for sessions
 
 ### Open Issues (Backlog)
 - [ ] SQLite migration (#12)
@@ -72,6 +73,15 @@ track status                    # Show current task and elapsed time
 track stop                      # Stop tracking and save session
 track report                    # Show today's sessions
 ```
+
+### Tags
+```bash
+track start "coding" --tag work --tag python   # Start with multiple tags
+track start "meeting" -t client -t billable    # Short form -t
+track report --tag work                        # Filter report by tag
+track export --tag client -o client_hours.csv  # Export only tagged sessions
+```
+Tags help organize sessions by project, client, or category.
 
 ### Reports
 ```bash
