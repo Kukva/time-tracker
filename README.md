@@ -21,6 +21,7 @@ See [GitHub Issues](../../issues) for full project history and roadmap.
 - [x] **Rich TUI Dashboard** with live timer (#13, #14, #15)
 - [x] **Telegram Bot** with reminders (#17, #18, #19)
 - [x] **Tags/Categories** for sessions
+- [x] **Pomodoro Timer** with breaks
 
 ### Open Issues (Backlog)
 - [ ] SQLite migration (#12)
@@ -82,6 +83,23 @@ track report --tag work                        # Filter report by tag
 track export --tag client -o client_hours.csv  # Export only tagged sessions
 ```
 Tags help organize sessions by project, client, or category.
+
+### Pomodoro Timer
+```bash
+track pomodoro start "deep work"       # Start 25 min pomodoro
+track pomodoro start "task" -d 15      # Custom duration (15 min)
+track pomodoro status                  # Show remaining time
+track pomodoro complete                # Complete and save session
+track pomodoro stop                    # Cancel without saving
+track pomodoro break                   # Start break (5 min)
+track pomodoro break --long            # Long break (15 min)
+```
+
+**Pomodoro Technique:**
+- 🍅 Work for 25 minutes (1 pomodoro)
+- ☕ Short break: 5 minutes
+- 🌴 Long break: 15 minutes (after 4 pomodoros)
+- Completed pomodoros are auto-tagged with `pomodoro`
 
 ### Reports
 ```bash

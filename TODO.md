@@ -14,6 +14,12 @@
   - Filter reports by tag: `--tag client`
   - Filter exports by tag
   - Tags displayed in status and reports
+- [x] **Pomodoro Timer** mode
+  - 25 min work sessions (customizable)
+  - 5 min short breaks / 15 min long breaks
+  - Auto long break after 4 pomodoros
+  - Pomodoro count tracking per day
+  - Commands: start, status, complete, stop, break
 
 ### User Interface
 - [x] Interactive CLI mode
@@ -29,11 +35,12 @@
   - Config stored in ~/.timetracker/telegram.json
 
 ### Testing & Quality
-- [x] Unit tests (60+ tests)
-- [x] BDD tests with pytest-bdd (33 scenarios)
+- [x] Unit tests (70+ tests)
+- [x] BDD tests with pytest-bdd (39 scenarios)
 - [x] TUI component tests (16 tests)
 - [x] Telegram bot tests (18 tests)
 - [x] Tags tests (8 tests)
+- [x] Pomodoro tests (10 tests)
 - [x] Test coverage >80%
 
 ## In Progress
@@ -44,7 +51,6 @@
 
 ### High Priority
 - [ ] CI/CD with GitHub Actions
-- [ ] Pomodoro timer mode
 
 ### Nice to Have
 - [ ] Desktop notifications
