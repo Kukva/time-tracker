@@ -520,5 +520,21 @@ def export(output, start_date, end_date):
     click.echo(tracker.export_csv(output, start_date, end_date))
 
 
+@cli.command()
+@click.option('--simple', is_flag=True, help='Use simple mode (no live updates)')
+def tui(simple):
+    """Launch beautiful TUI dashboard with live timer."""
+    from .tui import run_tui, run_tui_simple
+
+    if simple:
+        run_tui_simple()
+    else:
+        try:
+            run_tui()
+        except Exception:
+            # Fallback to simple mode on error
+            run_tui_simple()
+
+
 if __name__ == '__main__':
     cli()

@@ -95,3 +95,53 @@ Feature: Track work time
     Given I have no sessions this month
     When I run "track report --month"
     Then I should see "No sessions recorded for this month"
+
+  # ============ RICH TUI SCENARIOS ============
+
+  Scenario: Launch TUI dashboard
+    Given I have the rich library installed
+    When I run "track tui"
+    Then I should see a formatted dashboard
+    And I should see the status panel
+    And I should see the actions panel
+
+  Scenario: TUI shows live timer when tracking
+    Given I have an active session "coding"
+    When I view the TUI dashboard
+    Then I should see the task name "coding"
+    And I should see elapsed time updating
+    And the timer should be highlighted in green
+
+  Scenario: TUI shows idle state when not tracking
+    Given I am not currently tracking time
+    When I view the TUI dashboard
+    Then I should see "Not tracking" status
+    And the status should be highlighted in yellow
+
+  Scenario: Start task from TUI
+    Given I am viewing the TUI dashboard
+    And I am not currently tracking time
+    When I press "1" to start a task
+    And I enter task name "new feature"
+    Then tracking should start for "new feature"
+    And the dashboard should update to show active status
+
+  Scenario: Stop task from TUI
+    Given I am viewing the TUI dashboard
+    And I have an active session "bug fixing"
+    When I press "2" to stop tracking
+    Then tracking should stop
+    And I should see session summary
+    And the dashboard should update to show idle status
+
+  Scenario: View today's sessions in TUI
+    Given I have completed 3 sessions today
+    When I view the TUI dashboard
+    Then I should see today's sessions panel
+    And I should see total time worked today
+
+  Scenario: Exit TUI gracefully
+    Given I am viewing the TUI dashboard
+    When I press "q" to quit
+    Then the TUI should close cleanly
+    And I should return to normal terminal
