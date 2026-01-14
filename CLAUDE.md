@@ -1,12 +1,14 @@
 # Claude AI Development Guide
 
 ## Project Overview
-Time Tracker CLI - простой инструмент для отслеживания времени работы над задачами.
+Time Tracker CLI - инструмент для отслеживания времени работы над задачами с множеством интерфейсов.
 
 ## Technology Stack
 - Python 3.11+
 - Click (CLI framework)
-- pytest + pytest-cov (testing)
+- Rich (TUI dashboard)
+- python-telegram-bot (Telegram интеграция)
+- pytest + pytest-cov + pytest-bdd + pytest-asyncio (testing)
 - JSON storage (планируется миграция на SQLite)
 
 ## Development Workflow
@@ -21,12 +23,13 @@ Time Tracker CLI - простой инструмент для отслежива
 ### Порядок работы над фичей:
 ```
 1. Написать BDD сценарии в features/*.feature
-2. Написать pytest тесты в tests/test_*.py
-3. Запустить тесты (они должны упасть)
-4. Реализовать функционал
-5. Запустить тесты (они должны пройти)
-6. Сделать коммит с описательным сообщением
-7. Push делает пользователь вручную
+2. Написать step definitions в tests/test_bdd.py
+3. Написать pytest тесты в tests/test_*.py
+4. Запустить тесты (они должны упасть)
+5. Реализовать функционал
+6. Запустить тесты (они должны пройти)
+7. Сделать коммит с описательным сообщением
+8. Push делает пользователь вручную
 ```
 
 ## Running Tests
@@ -36,9 +39,10 @@ venv\Scripts\activate  # Windows
 source venv/bin/activate  # Linux/Mac
 
 # Запустить тесты с покрытием
-pytest tests/ -v --cov=src --cov-report=term-missing
+venv\Scripts\python.exe -m pytest tests/ -v --cov=src --cov-report=term-missing
 
 # Целевое покрытие: >80%
+# Текущее: 120+ тестов
 ```
 
 ## Git Workflow
@@ -46,8 +50,6 @@ pytest tests/ -v --cov=src --cov-report=term-missing
 ### Commit Messages Format
 ```
 <type>: <short description>
-
-<detailed description if needed>
 ```
 
 **Types:**
@@ -58,48 +60,54 @@ pytest tests/ -v --cov=src --cov-report=term-missing
 - `docs`: обновление документации
 - `chore`: технические изменения (зависимости, конфигурация)
 
-### Примеры коммитов:
-```
-test: add tests for CSV export functionality
-
-feat: implement CSV export with date filtering
-
-docs: update README with export command usage
-```
+### Важно:
+- НЕ делать push автоматически - пользователь делает сам
+- Спрашивать перед коммитом
+- Раздельные коммиты для кода и тестов если нужно
 
 ## Project Structure
 ```
 time-tracker/
 ├── src/
 │   ├── __init__.py
-│   ├── tracker.py      # Основная логика и CLI команды
-│   └── storage.py      # Работа с JSON хранилищем
+│   ├── tracker.py      # Основная логика, CLI команды, Pomodoro
+│   ├── storage.py      # Работа с JSON хранилищем
+│   ├── tui.py          # Rich TUI dashboard
+│   └── telegram_bot.py # Telegram бот с напоминаниями
 ├── tests/
 │   ├── test_tracker.py # Тесты основной логики
-│   └── test_storage.py # Тесты хранилища
+│   ├── test_storage.py # Тесты хранилища
+│   ├── test_tui.py     # Тесты TUI компонентов
+│   ├── test_telegram_bot.py # Тесты Telegram бота
+│   └── test_bdd.py     # BDD step definitions
+├── features/
+│   └── time_tracking.feature # BDD сценарии
 ├── requirements.txt    # Зависимости
 ├── setup.py           # Установка пакета
-└── README.md          # Пользовательская документация
+├── README.md          # Пользовательская документация
+├── TODO.md            # Roadmap проекта
+└── CLAUDE.md          # Этот файл
 ```
 
 ## Current Status
 
 ### Implemented Features
 - ✅ Basic commands: start, stop, status, report
-- ✅ Task name validation
-- ✅ Corrupted JSON handling
-- ✅ Test coverage: 84%
-
-### In Progress (High Priority)
-- 🔄 CSV export functionality
-- 🔄 Weekly reports
-- 🔄 Monthly reports
+- ✅ Task name validation & error handling
+- ✅ CSV export with date filtering
+- ✅ Weekly & Monthly reports
+- ✅ Tags/Categories for sessions
+- ✅ Rich TUI Dashboard with live timer
+- ✅ Telegram Bot with reminders
+- ✅ Pomodoro Timer mode
+- ✅ Interactive CLI mode
+- ✅ Test coverage: 120+ tests
 
 ### Backlog
-- Telegram bot integration (#10)
+- CI/CD with GitHub Actions
 - SQLite migration
-- CI/CD setup
-- Logging framework
+- Desktop notifications
+- Data visualization
 
 ## Code Standards
 
@@ -112,7 +120,7 @@ time-tracker/
 ### Error Handling
 - Graceful error handling with user-friendly messages
 - Validate input at entry points
-- Use emoji indicators: ✓ (success), ❌ (error), ⚠️ (warning)
+- Use emoji indicators: ✓ (success), ❌ (error), ⚠️ (warning), 🍅 (pomodoro)
 
 ### Testing Standards
 - Test happy path
@@ -126,7 +134,7 @@ time-tracker/
 ### Windows Environment
 - Project path contains Cyrillic characters: "ДЗ"
 - Use full paths in bash commands
-- PowerShell doesn't support `&&`, use `;` or full paths
+- CMD не поддерживает `&&` через Claude - использовать отдельные команды
 
 ### Virtual Environment
 - venv located in project root
@@ -136,8 +144,9 @@ time-tracker/
 ### Data Storage
 - Location: `~/.timetracker/`
 - Files:
-  - `active.json` - текущая активная сессия
+  - `active.json` - текущая активная сессия (+ tags, pomodoro data)
   - `sessions.json` - история завершенных сессий
+  - `telegram.json` - конфиг Telegram бота
   - `.backup` / `.corrupted` - бэкапы при ошибках
 
 ## Common Commands
@@ -150,25 +159,40 @@ pip install -e .
 # Run tests
 venv\Scripts\python.exe -m pytest tests/ -v --cov=src
 
-# Run application
-track start "task name"
+# Basic tracking
+track start "task name" --tag work
 track stop
 track status
-track report
-track export -o output.csv --start-date 2026-01-01
+track report --tag work
+
+# Pomodoro
+track pomodoro start "deep work"
+track pomodoro status
+track pomodoro complete
+track pomodoro break
+
+# TUI & Bot
+track tui
+track bot --setup
+track bot
+
+# Export
+track export -o output.csv --start-date 2026-01-01 --tag client
 ```
 
 ## AI Assistant Guidelines
 
 1. **Always follow TDD**: Tests first, implementation second
 2. **Make atomic commits**: One feature/fix per commit
-3. **Auto-push**: Push after each successful commit
-4. **Update todos**: Keep TodoWrite list current
-5. **Check coverage**: Maintain >80% test coverage
-6. **Handle errors**: Graceful error handling for all edge cases
-7. **Documentation**: Update README when adding new commands
+3. **NO auto-push**: Пользователь делает push сам
+4. **Ask before commit**: Спрашивать перед коммитом
+5. **Update todos**: Keep TodoWrite list current
+6. **Check coverage**: Maintain >80% test coverage
+7. **Handle errors**: Graceful error handling for all edge cases
+8. **Documentation**: Update README/TODO when adding new features
+9. **Separate commits**: Можно разделять код и тесты в разные коммиты
 
 ## Related Issues
 
 See GitHub Issues for detailed feature requests and bugs.
-Priority levels marked in issue labels.
+Closed issues: #2-10, #13-15, #17-19
