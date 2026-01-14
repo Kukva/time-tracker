@@ -4,7 +4,7 @@ Simple CLI time tracking tool for freelancers. Built with TDD/BDD methodology.
 
 ## Project Status
 
-**Test Coverage: 85% (68+ tests: 37 unit + 15 BDD + 16 TUI)**
+**Test Coverage: 85% (100+ tests: unit + BDD + TUI + Telegram)**
 
 See [GitHub Issues](../../issues) for full project history and roadmap.
 
@@ -19,9 +19,9 @@ See [GitHub Issues](../../issues) for full project history and roadmap.
 - [x] BDD tests with pytest-bdd (step definitions)
 - [x] Interactive CLI mode
 - [x] **Rich TUI Dashboard** with live timer (#13, #14, #15)
+- [x] **Telegram Bot** with reminders (#17, #18, #19)
 
 ### Open Issues (Backlog)
-- [ ] Telegram bot integration (#10)
 - [ ] SQLite migration (#12)
 - [ ] Logging framework (#11, #12)
 - [ ] File permission checks (#11)
@@ -35,6 +35,7 @@ Feature-rich CLI with multiple interfaces:
 - **TUI Dashboard** - Beautiful terminal UI with live timer (`track tui`)
 - **Interactive Menu** - Guided menu interface (`track`)
 - **Direct Commands** - Quick CLI commands (`track start/stop/...`)
+- **Telegram Bot** - Control from anywhere with reminders (`track bot`)
 
 ## Installation
 ```bash
@@ -89,6 +90,31 @@ track export -o my_report.csv             # Export to custom file
 track export --start-date 2026-01-01      # Filter by start date
 track export --end-date 2026-01-31        # Filter by end date
 ```
+
+### Telegram Bot
+```bash
+track bot --setup                         # Configure bot token
+track bot                                 # Run Telegram bot
+```
+
+**Bot Commands:**
+- `/start <task>` - Start tracking a task
+- `/stop` - Stop tracking
+- `/status` - Show current status
+- `/report` - Today's report
+- `/week` - Weekly report
+- `/month` - Monthly report
+- `/help` - Show available commands
+
+**Features:**
+- Automatic reminders for sessions > 4 hours
+- Daily summary notifications
+- Control tracking from anywhere via Telegram
+
+**Setup:**
+1. Create bot via [@BotFather](https://t.me/BotFather)
+2. Run `track bot --setup` and enter your token
+3. Run `track bot` to start the bot
 
 ## Development
 

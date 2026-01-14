@@ -17,11 +17,17 @@
   - Color-coded status panels
   - Today's sessions summary
   - Keyboard navigation
+- [x] **Telegram Bot** with reminders (#17, #18, #19)
+  - Commands: /start, /stop, /status, /report, /week, /month, /help
+  - Automatic reminders for long sessions (>4 hours)
+  - Daily summary notifications
+  - Config stored in ~/.timetracker/telegram.json
 
 ### Testing & Quality
-- [x] Unit tests (37 tests)
-- [x] BDD tests with pytest-bdd (15 scenarios)
+- [x] Unit tests (50+ tests)
+- [x] BDD tests with pytest-bdd (29 scenarios)
 - [x] TUI component tests (16 tests)
+- [x] Telegram bot tests (18 tests)
 - [x] Test coverage >80%
 
 ## In Progress
@@ -35,7 +41,6 @@
 - [ ] Pomodoro timer mode
 
 ### Nice to Have
-- [ ] Telegram bot notifications (#10)
 - [ ] Desktop notifications
 - [ ] Data visualization / charts
 - [ ] Config file support (.timetracker.yml)
@@ -58,7 +63,8 @@
 | #7 | AI code review | Closed |
 | #8 | CSV export | Closed |
 | #9 | Task validation | Closed |
-| #10 | Telegram integration | Open |
+| #10 | Telegram integration | Closed |
 | #11 | Security improvements | Open (partial) |
 | #12 | Medium/Low priority | Closed |
 | #13-15 | Rich TUI | Closed |
+| #17-19 | Telegram bot + reminders | Closed |
