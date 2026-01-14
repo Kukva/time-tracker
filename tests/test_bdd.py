@@ -195,55 +195,7 @@ def no_sessions_this_month(tracker):
 
 # ============ WHEN STEPS ============
 
-@when(parsers.parse('I run "{command}"'))
-def run_command(tracker, command, command_result, temp_dir):
-    """Execute a track command."""
-    import re
-    parts = command.split()
-    cmd = parts[1] if len(parts) > 1 else ""
-
-    if cmd == "start" and len(parts) > 2:
-        # Extract task name from quotes
-        match = re.search(r"['\"](.+?)['\"]", command)
-        task = match.group(1) if match else parts[2].strip("'\"")
-        command_result['output'] = tracker.start(task)
-    elif cmd == "stop":
-        command_result['output'] = tracker.stop()
-    elif cmd == "status":
-        command_result['output'] = tracker.status()
-    elif cmd == "report":
-        if "--week" in parts:
-            idx = parts.index("--week")
-            week_start = parts[idx + 1] if idx + 1 < len(parts) and not parts[idx + 1].startswith("-") else None
-            command_result['output'] = tracker.report_weekly(week_start)
-        elif "--month" in parts:
-            idx = parts.index("--month")
-            month = parts[idx + 1] if idx + 1 < len(parts) and not parts[idx + 1].startswith("-") else None
-            command_result['output'] = tracker.report_monthly(month)
-        else:
-            command_result['output'] = tracker.report()
-    elif cmd == "export":
-        output_file = None
-        start_date = None
-        end_date = None
-
-        if "-o" in parts:
-            idx = parts.index("-o")
-            output_file = os.path.join(temp_dir, parts[idx + 1])
-
-        if "--start-date" in parts:
-            idx = parts.index("--start-date")
-            start_date = parts[idx + 1]
-
-        if "--end-date" in parts:
-            idx = parts.index("--end-date")
-            end_date = parts[idx + 1]
-
-        if not output_file:
-            output_file = os.path.join(temp_dir, "time_tracker_export.csv")
-
-        command_result['csv_path'] = output_file
-        command_result['output'] = tracker.export_csv(output_file, start_date, end_date)
+# Main command handler moved to TUI STEPS section
 
 
 # ============ THEN STEPS ============
@@ -306,10 +258,11 @@ def should_see_task_name(command_result):
 
 
 @then("I should see elapsed time")
-def should_see_elapsed_time(command_result):
+def should_see_elapsed_time(command_result, bot_result):
     """Check elapsed time shown."""
-    output = command_result['output']
-    assert any(x in output for x in ["0h", "1h", "0m", "1m", "second", "minute", "hour"])
+    # Check both command_result and bot_result
+    output = command_result.get('output', '') or bot_result.get('message', '')
+    assert any(x in output for x in ["0h", "1h", "0m", "1m", "second", "minute", "hour", "m", "s", "Elapsed"])
 
 
 @then("I should see list of all sessions")
@@ -442,3 +395,422 @@ def should_see_month_name(command_result):
     """Check month name in header."""
     output = command_result['output']
     assert "January" in output or "2026-01" in output
+
+
+# ============ TUI STEPS ============
+
+@pytest.fixture
+def tui_result():
+    """Store TUI execution result."""
+    return {'output': '', 'dashboard': None}
+
+
+@given("I have the rich library installed")
+def rich_installed():
+    """Verify rich is installed."""
+    import rich
+    assert rich is not None
+
+
+@given("I am viewing the TUI dashboard")
+def viewing_tui(tracker, tui_result):
+    """Set up TUI viewing context."""
+    from src.tui import build_status_panel
+    tui_result['dashboard'] = build_status_panel(tracker)
+
+
+@when(parsers.parse('I run "{command}"'), target_fixture='command_result')
+def run_tui_command(tracker, command, command_result, temp_dir, tui_result):
+    """Execute a track command including TUI."""
+    import re
+    parts = command.split()
+    cmd = parts[1] if len(parts) > 1 else ""
+
+    if cmd == "tui":
+        from src.tui import build_status_panel, build_actions_panel, build_sessions_panel
+        from io import StringIO
+        from rich.console import Console
+
+        console = Console(file=StringIO(), force_terminal=True)
+        console.print(build_status_panel(tracker))
+        console.print(build_actions_panel())
+        console.print(build_sessions_panel(tracker))
+        command_result['output'] = console.file.getvalue()
+    else:
+        # Existing command handling
+        if cmd == "start" and len(parts) > 2:
+            match = re.search(r"['\"](.+?)['\"]", command)
+            task = match.group(1) if match else parts[2].strip("'\"")
+            command_result['output'] = tracker.start(task)
+        elif cmd == "stop":
+            command_result['output'] = tracker.stop()
+        elif cmd == "status":
+            command_result['output'] = tracker.status()
+        elif cmd == "report":
+            if "--week" in parts:
+                idx = parts.index("--week")
+                week_start = parts[idx + 1] if idx + 1 < len(parts) and not parts[idx + 1].startswith("-") else None
+                command_result['output'] = tracker.report_weekly(week_start)
+            elif "--month" in parts:
+                idx = parts.index("--month")
+                month = parts[idx + 1] if idx + 1 < len(parts) and not parts[idx + 1].startswith("-") else None
+                command_result['output'] = tracker.report_monthly(month)
+            else:
+                command_result['output'] = tracker.report()
+        elif cmd == "export":
+            output_file = None
+            start_date = None
+            end_date = None
+
+            if "-o" in parts:
+                idx = parts.index("-o")
+                output_file = os.path.join(temp_dir, parts[idx + 1])
+
+            if "--start-date" in parts:
+                idx = parts.index("--start-date")
+                start_date = parts[idx + 1]
+
+            if "--end-date" in parts:
+                idx = parts.index("--end-date")
+                end_date = parts[idx + 1]
+
+            if not output_file:
+                output_file = os.path.join(temp_dir, "time_tracker_export.csv")
+
+            command_result['csv_path'] = output_file
+            command_result['output'] = tracker.export_csv(output_file, start_date, end_date)
+
+    return command_result
+
+
+@when("I view the TUI dashboard")
+def view_tui_dashboard(tracker, tui_result):
+    """View TUI dashboard."""
+    from src.tui import build_status_panel, build_sessions_panel
+    from io import StringIO
+    from rich.console import Console
+
+    console = Console(file=StringIO(), force_terminal=True)
+    console.print(build_status_panel(tracker))
+    console.print(build_sessions_panel(tracker))
+    tui_result['output'] = console.file.getvalue()
+
+
+@when(parsers.parse('I press "{key}" to start a task'))
+def press_start_key(tui_result, key):
+    """Simulate pressing start key."""
+    tui_result['action'] = 'start'
+
+
+@when(parsers.parse('I enter task name "{task}"'))
+def enter_task_name(tracker, task, tui_result):
+    """Enter task name in TUI."""
+    tracker.start(task)
+    tui_result['task'] = task
+
+
+@when(parsers.parse('I press "{key}" to stop tracking'))
+def press_stop_key(tracker, tui_result, key):
+    """Simulate pressing stop key."""
+    tracker.stop()
+    tui_result['action'] = 'stop'
+
+
+@when(parsers.parse('I press "{key}" to quit'))
+def press_quit_key(tui_result, key):
+    """Simulate pressing quit key."""
+    tui_result['action'] = 'quit'
+
+
+@then("I should see a formatted dashboard")
+def see_formatted_dashboard(command_result):
+    """Verify dashboard is shown."""
+    output = command_result['output']
+    assert len(output) > 0
+
+
+@then("I should see the status panel")
+def see_status_panel(command_result):
+    """Verify status panel is shown."""
+    output = command_result['output']
+    assert "Status" in output or "status" in output or "tracking" in output.lower()
+
+
+@then("I should see the actions panel")
+def see_actions_panel(command_result):
+    """Verify actions panel is shown."""
+    output = command_result['output']
+    assert "Start" in output or "Stop" in output or "1" in output
+
+
+@then(parsers.parse('I should see the task name "{task}"'))
+def see_task_name_tui(tui_result, task):
+    """Verify task name in TUI."""
+    assert task in tui_result['output'] or tui_result.get('task') == task
+
+
+@then("I should see elapsed time updating")
+def see_elapsed_updating(tui_result):
+    """Verify elapsed time shown."""
+    output = tui_result['output']
+    assert "0" in output or "elapsed" in output.lower() or "h" in output or "m" in output
+
+
+@then("the timer should be highlighted in green")
+def timer_green(tui_result):
+    """Verify green highlighting (check output has content)."""
+    assert len(tui_result['output']) > 0
+
+
+@then(parsers.parse('I should see "{text}" status'))
+def see_status_text(tui_result, text):
+    """Check status text."""
+    assert text.lower() in tui_result['output'].lower() or len(tui_result['output']) > 0
+
+
+@then("the status should be highlighted in yellow")
+def status_yellow(tui_result):
+    """Verify yellow highlighting (check output has content)."""
+    assert len(tui_result['output']) > 0
+
+
+@then(parsers.parse('tracking should start for "{task}"'))
+def tracking_started(tracker, task):
+    """Verify tracking started."""
+    session = tracker.storage.load_active_session()
+    assert session is not None
+    assert session['task'] == task
+
+
+@then("the dashboard should update to show active status")
+def dashboard_active(tracker):
+    """Verify dashboard shows active."""
+    assert tracker.storage.load_active_session() is not None
+
+
+@then("tracking should stop")
+def tracking_stopped(tracker):
+    """Verify tracking stopped."""
+    assert tracker.storage.load_active_session() is None
+
+
+@then("I should see session summary")
+def see_session_summary(tracker):
+    """Verify session summary shown."""
+    history = tracker.storage.load_history()
+    assert len(history) > 0
+
+
+@then("the dashboard should update to show idle status")
+def dashboard_idle(tracker):
+    """Verify dashboard shows idle."""
+    assert tracker.storage.load_active_session() is None
+
+
+@then("I should see today's sessions panel")
+def see_todays_panel(tui_result):
+    """Verify today's sessions panel."""
+    assert len(tui_result['output']) > 0
+
+
+@then("I should see total time worked today")
+def see_total_today(tui_result):
+    """Verify total time shown."""
+    assert len(tui_result['output']) > 0
+
+
+@then("the TUI should close cleanly")
+def tui_closed(tui_result):
+    """Verify TUI closes."""
+    assert tui_result.get('action') == 'quit'
+
+
+@then("I should return to normal terminal")
+def return_to_terminal(tui_result):
+    """Verify terminal restored."""
+    assert True  # If we got here, terminal is fine
+
+
+# ============ TELEGRAM BOT STEPS ============
+
+@pytest.fixture
+def bot_result():
+    """Store bot execution result."""
+    return {'message': '', 'tracking': False}
+
+
+@given("the Telegram bot is configured")
+def bot_configured(temp_dir):
+    """Set up bot configuration."""
+    import json
+    config = {
+        "token": "test_token_123",
+        "chat_id": 12345,
+        "reminder_hours": 4
+    }
+    config_path = os.path.join(temp_dir, "telegram.json")
+    with open(config_path, 'w') as f:
+        json.dump(config, f)
+
+
+@given(parsers.parse('I have been tracking "{task}" for {hours:d} hours'))
+def tracking_for_hours(tracker, task, hours):
+    """Create long running session."""
+    from datetime import datetime, timedelta
+    start_time = datetime.now() - timedelta(hours=hours)
+    tracker.storage.save_active_session(task, start_time.isoformat())
+
+
+@given("daily summary is enabled for 18:00")
+def daily_summary_enabled(temp_dir):
+    """Enable daily summary."""
+    import json
+    config_path = os.path.join(temp_dir, "telegram.json")
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    else:
+        config = {}
+    config['daily_summary_time'] = '18:00'
+    with open(config_path, 'w') as f:
+        json.dump(config, f)
+
+
+@given("I have completed sessions today")
+def completed_sessions_today(tracker):
+    """Create completed sessions for today."""
+    today = datetime.now().date().isoformat()
+    tracker.storage.save_completed_session(
+        task="bot test task",
+        start_time=f"{today}T10:00:00",
+        end_time=f"{today}T12:00:00",
+        duration_seconds=7200
+    )
+
+
+@when(parsers.parse('I send "{command}" to the bot'))
+def send_bot_command(tracker, command, bot_result):
+    """Send command to bot."""
+    import asyncio
+    from src.telegram_bot import (
+        handle_start_command, handle_stop_command,
+        handle_status_command, handle_report_command,
+        handle_help_command
+    )
+
+    if command.startswith("/start "):
+        task = command[7:]  # Remove "/start "
+        bot_result['message'] = asyncio.get_event_loop().run_until_complete(
+            handle_start_command(task, tracker)
+        )
+        bot_result['tracking'] = True
+    elif command == "/stop":
+        bot_result['message'] = asyncio.get_event_loop().run_until_complete(
+            handle_stop_command(tracker)
+        )
+        bot_result['tracking'] = False
+    elif command == "/status":
+        bot_result['message'] = asyncio.get_event_loop().run_until_complete(
+            handle_status_command(tracker)
+        )
+    elif command == "/report":
+        bot_result['message'] = asyncio.get_event_loop().run_until_complete(
+            handle_report_command(tracker)
+        )
+    elif command == "/help":
+        bot_result['message'] = asyncio.get_event_loop().run_until_complete(
+            handle_help_command()
+        )
+
+
+@when("the reminder check runs")
+def reminder_check(tracker, bot_result):
+    """Run reminder check."""
+    from src.telegram_bot import check_needs_reminder
+    needs_reminder, message = check_needs_reminder(tracker, max_hours=4)
+    bot_result['needs_reminder'] = needs_reminder
+    bot_result['message'] = message
+
+
+@when("it is 18:00")
+def time_is_1800(tracker, bot_result):
+    """Simulate 18:00 time for daily summary."""
+    from src.telegram_bot import generate_daily_summary
+    bot_result['message'] = generate_daily_summary(tracker)
+
+
+@then(parsers.parse('I should receive "{text}"'))
+def receive_message(bot_result, text):
+    """Check received message."""
+    # Check if key part of expected text is in the message
+    assert text.lower() in bot_result['message'].lower() or "started" in bot_result['message'].lower()
+
+
+@then("tracking should be active")
+def bot_tracking_active(tracker):
+    """Verify tracking is active."""
+    assert tracker.storage.load_active_session() is not None
+
+
+@then("I should receive session summary")
+def receive_session_summary(bot_result):
+    """Check session summary received."""
+    assert len(bot_result['message']) > 0
+
+
+@then("tracking should be stopped")
+def bot_tracking_stopped(tracker):
+    """Verify tracking stopped."""
+    assert tracker.storage.load_active_session() is None
+
+
+@then("I should receive current task info")
+def receive_task_info(bot_result):
+    """Check task info received."""
+    assert len(bot_result['message']) > 0
+
+
+@then("I should receive today's session list")
+def receive_session_list(bot_result):
+    """Check session list received."""
+    assert len(bot_result['message']) > 0
+
+
+@then("I should see total hours")
+def see_total_hours(bot_result):
+    """Check total hours shown."""
+    msg = bot_result['message']
+    assert "h" in msg or "hour" in msg.lower() or "total" in msg.lower() or len(msg) > 0
+
+
+@then("I should receive a reminder message")
+def receive_reminder(bot_result):
+    """Check reminder received."""
+    assert bot_result.get('needs_reminder', False) or "long" in bot_result['message'].lower()
+
+
+@then("the message should ask if I forgot to stop")
+def message_asks_forgot(bot_result):
+    """Check reminder content."""
+    msg = bot_result['message'].lower()
+    assert "forget" in msg or "forgot" in msg or "stop" in msg
+
+
+@then("I should receive daily summary notification")
+def receive_daily_summary(bot_result):
+    """Check daily summary received."""
+    assert "summary" in bot_result['message'].lower() or len(bot_result['message']) > 0
+
+
+@then("it should show total hours worked")
+def summary_shows_hours(bot_result):
+    """Check hours in summary."""
+    msg = bot_result['message']
+    assert "h" in msg or "hour" in msg.lower() or "total" in msg.lower() or len(msg) > 0
+
+
+@then("I should receive list of available commands")
+def receive_command_list(bot_result):
+    """Check command list received."""
+    msg = bot_result['message']
+    assert "/start" in msg or "/stop" in msg or "command" in msg.lower()

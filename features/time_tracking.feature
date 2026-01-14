@@ -145,3 +145,53 @@ Feature: Track work time
     When I press "q" to quit
     Then the TUI should close cleanly
     And I should return to normal terminal
+
+  # ============ TELEGRAM BOT SCENARIOS ============
+
+  Scenario: Start tracking via Telegram
+    Given the Telegram bot is configured
+    And I am not currently tracking time
+    When I send "/start coding feature" to the bot
+    Then I should receive "Session started: coding feature"
+    And tracking should be active
+
+  Scenario: Stop tracking via Telegram
+    Given the Telegram bot is configured
+    And I have an active session "bug fixing"
+    When I send "/stop" to the bot
+    Then I should receive session summary
+    And tracking should be stopped
+
+  Scenario: Check status via Telegram
+    Given the Telegram bot is configured
+    And I have an active session "writing docs"
+    When I send "/status" to the bot
+    Then I should receive current task info
+    And I should see elapsed time
+
+  Scenario: Get daily report via Telegram
+    Given the Telegram bot is configured
+    And I have completed sessions today
+    When I send "/report" to the bot
+    Then I should receive today's session list
+    And I should see total hours
+
+  Scenario: Receive reminder for long session
+    Given the Telegram bot is configured
+    And I have been tracking "long task" for 4 hours
+    When the reminder check runs
+    Then I should receive a reminder message
+    And the message should ask if I forgot to stop
+
+  Scenario: Receive daily summary
+    Given the Telegram bot is configured
+    And daily summary is enabled for 18:00
+    And I have completed sessions today
+    When it is 18:00
+    Then I should receive daily summary notification
+    And it should show total hours worked
+
+  Scenario: Bot help command
+    Given the Telegram bot is configured
+    When I send "/help" to the bot
+    Then I should receive list of available commands
