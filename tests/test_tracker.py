@@ -636,3 +636,109 @@ def test_status_shows_tags(tracker):
 
     assert "work" in result
     assert "python" in result
+
+
+# ============ POMODORO TESTS ============
+
+def test_pomodoro_start(tracker):
+    """Test starting a pomodoro session."""
+    result = tracker.pomodoro_start("deep work")
+
+    assert "Pomodoro started" in result
+    assert "deep work" in result
+    assert "25:00" in result or "25 min" in result
+
+    active = tracker.storage.load_active_session()
+    assert active is not None
+    assert active['task'] == "deep work"
+    assert active.get('pomodoro') is True
+
+
+def test_pomodoro_start_custom_duration(tracker):
+    """Test starting pomodoro with custom duration."""
+    result = tracker.pomodoro_start("quick task", duration=15)
+
+    assert "Pomodoro started" in result
+    assert "15" in result
+
+    active = tracker.storage.load_active_session()
+    assert active.get('pomodoro_duration') == 15
+
+
+def test_pomodoro_status(tracker):
+    """Test pomodoro status shows remaining time."""
+    tracker.pomodoro_start("coding")
+    result = tracker.pomodoro_status()
+
+    assert "Pomodoro" in result
+    assert "coding" in result
+    assert "remaining" in result.lower() or ":" in result
+
+
+def test_pomodoro_stop(tracker):
+    """Test stopping/canceling a pomodoro."""
+    tracker.pomodoro_start("writing")
+    result = tracker.pomodoro_stop()
+
+    assert "cancelled" in result.lower() or "stopped" in result.lower()
+
+    active = tracker.storage.load_active_session()
+    assert active is None
+
+
+def test_pomodoro_complete(tracker):
+    """Test completing a pomodoro session."""
+    # Start pomodoro with very short duration for testing
+    tracker.pomodoro_start("test task", duration=0)
+
+    # Simulate completion
+    result = tracker.pomodoro_complete()
+
+    assert "complete" in result.lower()
+
+    # Check session saved to history
+    history = tracker.storage.load_history()
+    assert len(history) >= 1
+
+
+def test_pomodoro_count_tracking(tracker):
+    """Test that pomodoro count is tracked."""
+    # Complete a pomodoro
+    tracker.pomodoro_start("task 1", duration=0)
+    tracker.pomodoro_complete()
+
+    # Start another
+    tracker.pomodoro_start("task 2", duration=0)
+    tracker.pomodoro_complete()
+
+    count = tracker.get_pomodoro_count()
+    assert count >= 2
+
+
+def test_pomodoro_break_short(tracker):
+    """Test short break after pomodoro."""
+    # Complete 1 pomodoro
+    tracker.pomodoro_start("task", duration=0)
+    tracker.pomodoro_complete()
+
+    result = tracker.start_break()
+    assert "5" in result  # 5 minute break
+
+
+def test_pomodoro_break_long(tracker):
+    """Test long break after 4 pomodoros."""
+    # Complete 4 pomodoros
+    for i in range(4):
+        tracker.pomodoro_start(f"task {i}", duration=0)
+        tracker.pomodoro_complete()
+
+    result = tracker.start_break()
+    assert "15" in result or "long" in result.lower()  # 15 minute break
+
+
+def test_cannot_start_pomodoro_while_tracking(tracker):
+    """Test that pomodoro can't start while already tracking."""
+    tracker.start("normal task")
+    result = tracker.pomodoro_start("pomodoro task")
+
+    assert "Already tracking" in result or "active" in result.lower()

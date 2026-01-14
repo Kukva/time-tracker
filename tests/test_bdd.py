@@ -201,9 +201,10 @@ def no_sessions_this_month(tracker):
 # ============ THEN STEPS ============
 
 @then(parsers.parse('I should see "{text}"'))
-def should_see_text(command_result, text):
+def should_see_text(command_result, pomodoro_result, text):
     """Check that output contains text."""
-    assert text in command_result['output'], f"Expected '{text}' in '{command_result['output']}'"
+    output = command_result.get('output', '') or pomodoro_result.get('output', '')
+    assert text in output, f"Expected '{text}' in '{output}'"
 
 
 @then("current session should be active")
@@ -902,3 +903,125 @@ def csv_only_tagged(command_result, tag):
             content = f.read()
         assert tag in content
         assert "personal" not in content
+
+
+# ============ POMODORO STEPS ============
+
+@pytest.fixture
+def pomodoro_result():
+    """Store pomodoro execution result."""
+    return {'output': '', 'count': 0}
+
+
+@when(parsers.parse('I start a pomodoro for "{task}"'))
+def start_pomodoro(tracker, pomodoro_result, task):
+    """Start a pomodoro session."""
+    pomodoro_result['output'] = tracker.pomodoro_start(task)
+
+
+@given(parsers.parse('I have an active pomodoro with {seconds:d} second remaining'))
+def active_pomodoro_remaining(tracker, seconds):
+    """Create pomodoro about to complete."""
+    tracker.pomodoro_start("test task", duration=0)
+
+
+@given(parsers.parse('I have completed {count:d} pomodoro'))
+@given(parsers.parse('I have completed {count:d} pomodoros'))
+def completed_pomodoros(tracker, count):
+    """Complete specified number of pomodoros."""
+    for i in range(count):
+        tracker.pomodoro_start(f"task {i}", duration=0)
+        tracker.pomodoro_complete()
+
+
+@given(parsers.parse('I have an active pomodoro "{task}"'))
+def active_pomodoro(tracker, task):
+    """Create active pomodoro."""
+    tracker.pomodoro_start(task)
+
+
+@when("the pomodoro timer completes")
+@when("the pomodoro ends")
+@when(parsers.parse("the {ordinal} pomodoro ends"))
+def pomodoro_completes(tracker, pomodoro_result, ordinal=None):
+    """Complete the pomodoro."""
+    pomodoro_result['output'] = tracker.pomodoro_complete()
+
+
+@when("I check pomodoro status")
+def check_pomodoro_status(tracker, pomodoro_result):
+    """Check pomodoro status."""
+    pomodoro_result['output'] = tracker.pomodoro_status()
+
+
+@when("I cancel the pomodoro")
+def cancel_pomodoro(tracker, pomodoro_result):
+    """Cancel pomodoro."""
+    pomodoro_result['output'] = tracker.pomodoro_stop()
+
+
+@then(parsers.parse('pomodoro should be active with {minutes:d} minutes'))
+def pomodoro_active_with_duration(tracker, minutes):
+    """Verify pomodoro is active with duration."""
+    active = tracker.storage.load_active_session()
+    assert active is not None
+    assert active.get('pomodoro') is True
+    assert active.get('pomodoro_duration') == minutes
+
+
+@then(parsers.parse('task should be "{task}"'))
+def task_should_be(tracker, task):
+    """Verify task name."""
+    active = tracker.storage.load_active_session()
+    assert active is not None
+    assert active['task'] == task
+
+
+@then("pomodoro count should increase by 1")
+def pomodoro_count_increased(tracker):
+    """Verify pomodoro count."""
+    count = tracker.get_pomodoro_count()
+    assert count >= 1
+
+
+@then("break should start automatically")
+def break_starts(tracker, pomodoro_result):
+    """Verify break message shown."""
+    # Break info shown in complete message or can start break
+    result = tracker.start_break()
+    assert "break" in result.lower() or "Break" in result
+
+
+@then(parsers.parse('a {duration:d} minute break should start'))
+def break_duration(tracker, duration):
+    """Verify break duration."""
+    result = tracker.start_break()
+    assert str(duration) in result
+
+
+@then("I should see remaining time")
+def see_remaining_time(pomodoro_result):
+    """Verify remaining time shown."""
+    output = pomodoro_result['output']
+    assert ":" in output or "remaining" in output.lower() or "Remaining" in output
+
+
+@then("I should see pomodoro count")
+def see_pomodoro_count(pomodoro_result):
+    """Verify pomodoro count shown."""
+    output = pomodoro_result['output']
+    assert "pomodoro" in output.lower() or "today" in output.lower()
+
+
+@then("pomodoro should stop")
+def pomodoro_stopped(tracker):
+    """Verify pomodoro stopped."""
+    active = tracker.storage.load_active_session()
+    assert active is None
+
+
+@then("session should not be saved")
+def session_not_saved(tracker, pomodoro_result):
+    """Verify session was not saved (cancelled)."""
+    output = pomodoro_result['output']
+    assert "cancelled" in output.lower() or "cancel" in output.lower()

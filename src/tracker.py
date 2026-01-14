@@ -420,6 +420,166 @@ class TimeTracker:
 
         return "\n".join(output)
 
+    # ============ POMODORO METHODS ============
+
+    def pomodoro_start(self, task: str, duration: int = 25, tags: List[str] = None) -> str:
+        """
+        Start a pomodoro session.
+
+        Args:
+            task: Task name
+            duration: Duration in minutes (default 25)
+            tags: Optional tags
+
+        Returns:
+            Success/error message
+        """
+        # Check if already tracking
+        active = self.storage.load_active_session()
+        if active:
+            return f"❌ Already tracking: {active['task']}\nStop current session first."
+
+        # Validate task name
+        validation_error = self._validate_task_name(task)
+        if validation_error:
+            return validation_error
+
+        task = task.strip()
+        tags = tags or []
+
+        start_time = datetime.now().isoformat()
+        self.storage.save_active_session(task, start_time, tags)
+
+        # Add pomodoro-specific data
+        active = self.storage.load_active_session()
+        active['pomodoro'] = True
+        active['pomodoro_duration'] = duration
+
+        # Save updated session
+        with open(self.storage.active_file, 'w') as f:
+            import json
+            json.dump(active, f, indent=2)
+
+        return f"🍅 Pomodoro started: {task} ({duration} min)"
+
+    def pomodoro_status(self) -> str:
+        """Show pomodoro status with remaining time."""
+        active = self.storage.load_active_session()
+
+        if not active:
+            return "No active pomodoro"
+
+        if not active.get('pomodoro'):
+            return "Current session is not a pomodoro"
+
+        try:
+            start_time = datetime.fromisoformat(active['start_time'])
+        except (ValueError, KeyError):
+            return "❌ Error: Invalid session data"
+
+        duration = active.get('pomodoro_duration', 25)
+        elapsed = datetime.now() - start_time
+        elapsed_minutes = int(elapsed.total_seconds() / 60)
+        remaining = max(0, duration - elapsed_minutes)
+
+        remaining_min = remaining
+        remaining_sec = max(0, int((duration * 60) - elapsed.total_seconds()) % 60)
+
+        count = self.get_pomodoro_count()
+
+        return f"🍅 Pomodoro: {active['task']}\n⏱ Remaining: {remaining_min:02d}:{remaining_sec:02d}\n📊 Today's pomodoros: {count}"
+
+    def pomodoro_stop(self) -> str:
+        """Cancel current pomodoro without saving."""
+        active = self.storage.load_active_session()
+
+        if not active:
+            return "❌ No active pomodoro to cancel"
+
+        task = active.get('task', 'Unknown')
+        self.storage.clear_active_session()
+
+        return f"🍅 Pomodoro cancelled: {task}"
+
+    def pomodoro_complete(self) -> str:
+        """Complete pomodoro and save session."""
+        active = self.storage.load_active_session()
+
+        if not active:
+            return "❌ No active pomodoro"
+
+        try:
+            start_time = datetime.fromisoformat(active['start_time'])
+        except (ValueError, KeyError):
+            return "❌ Error: Invalid session data"
+
+        end_time = datetime.now()
+        duration = end_time - start_time
+
+        tags = active.get('tags', [])
+        if 'pomodoro' not in tags:
+            tags.append('pomodoro')
+
+        self.storage.save_completed_session(
+            task=active['task'],
+            start_time=active['start_time'],
+            end_time=end_time.isoformat(),
+            duration_seconds=int(duration.total_seconds()),
+            tags=tags
+        )
+
+        self.storage.clear_active_session()
+
+        hours, remainder = divmod(int(duration.total_seconds()), 3600)
+        minutes, _ = divmod(remainder, 60)
+
+        count = self.get_pomodoro_count()
+
+        return f"🍅 Pomodoro complete: {active['task']}\n⏱ Duration: {hours}h {minutes}m\n📊 Today's pomodoros: {count}"
+
+    def get_pomodoro_count(self) -> int:
+        """Get count of completed pomodoros today."""
+        today = datetime.now().date().isoformat()
+        history = self.storage.load_history()
+
+        count = 0
+        for session in history:
+            try:
+                if session['start_time'].startswith(today):
+                    tags = session.get('tags', [])
+                    if 'pomodoro' in tags:
+                        count += 1
+            except (KeyError, TypeError):
+                continue
+
+        return count
+
+    def start_break(self, long_break: bool = None) -> str:
+        """
+        Start a break timer.
+
+        Args:
+            long_break: Force long break (15 min) if True, short break (5 min) if False.
+                        If None, auto-detect based on pomodoro count.
+
+        Returns:
+            Break message
+        """
+        count = self.get_pomodoro_count()
+
+        # Auto-detect break type
+        if long_break is None:
+            long_break = (count % 4 == 0 and count > 0)
+
+        if long_break:
+            duration = 15
+            break_type = "Long break"
+        else:
+            duration = 5
+            break_type = "Short break"
+
+        return f"☕ {break_type}: {duration} minutes\n🍅 Pomodoros completed today: {count}"
+
 
 def interactive_mode():
     """Run interactive menu for time tracking."""
@@ -577,6 +737,51 @@ def bot(setup, token):
         setup_bot()
     else:
         run_bot(token)
+
+
+@cli.group()
+def pomodoro():
+    """Pomodoro timer commands."""
+    pass
+
+
+@pomodoro.command('start')
+@click.argument('task')
+@click.option('--duration', '-d', default=25, help='Duration in minutes (default 25)')
+@click.option('--tag', '-t', multiple=True, help='Add tag to session')
+def pomodoro_start_cmd(task, duration, tag):
+    """Start a pomodoro session."""
+    tracker = TimeTracker()
+    click.echo(tracker.pomodoro_start(task, duration, tags=list(tag) if tag else None))
+
+
+@pomodoro.command('status')
+def pomodoro_status_cmd():
+    """Show pomodoro status and remaining time."""
+    tracker = TimeTracker()
+    click.echo(tracker.pomodoro_status())
+
+
+@pomodoro.command('stop')
+def pomodoro_stop_cmd():
+    """Cancel current pomodoro."""
+    tracker = TimeTracker()
+    click.echo(tracker.pomodoro_stop())
+
+
+@pomodoro.command('complete')
+def pomodoro_complete_cmd():
+    """Mark pomodoro as complete and save."""
+    tracker = TimeTracker()
+    click.echo(tracker.pomodoro_complete())
+
+
+@pomodoro.command('break')
+@click.option('--long', 'long_break', is_flag=True, help='Start long break (15 min)')
+def pomodoro_break_cmd(long_break):
+    """Start a break (5 min short, 15 min long)."""
+    tracker = TimeTracker()
+    click.echo(tracker.start_break(long_break if long_break else None))
 
 
 if __name__ == '__main__':

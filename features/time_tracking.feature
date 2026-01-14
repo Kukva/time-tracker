@@ -217,3 +217,40 @@ Feature: Track work time
     Given I have sessions with different tags
     When I run "track export --tag client -o tagged.csv"
     Then CSV should only contain sessions with tag "client"
+
+  # ============ POMODORO SCENARIOS ============
+
+  Scenario: Start pomodoro session
+    Given I am not currently tracking time
+    When I start a pomodoro for "deep work"
+    Then pomodoro should be active with 25 minutes
+    And task should be "deep work"
+
+  Scenario: Complete pomodoro session
+    Given I have an active pomodoro with 1 second remaining
+    When the pomodoro timer completes
+    Then I should see "Pomodoro complete"
+    And pomodoro count should increase by 1
+    And break should start automatically
+
+  Scenario: Short break after pomodoro
+    Given I have completed 1 pomodoro
+    When the pomodoro ends
+    Then a 5 minute break should start
+
+  Scenario: Long break after 4 pomodoros
+    Given I have completed 4 pomodoros
+    When the 4th pomodoro ends
+    Then a 15 minute break should start
+
+  Scenario: View pomodoro status
+    Given I have an active pomodoro "coding"
+    When I check pomodoro status
+    Then I should see remaining time
+    And I should see pomodoro count
+
+  Scenario: Cancel pomodoro
+    Given I have an active pomodoro "writing"
+    When I cancel the pomodoro
+    Then pomodoro should stop
+    And session should not be saved
