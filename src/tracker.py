@@ -1,7 +1,7 @@
 import click
 import csv
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 from .storage import Storage
 
@@ -32,24 +32,27 @@ class TimeTracker:
         
         return None  # Valid
     
-    def start(self, task: str) -> str:
+    def start(self, task: str, tags: List[str] = None) -> str:
         """Start tracking a new task."""
         # Validate task name
         validation_error = self._validate_task_name(task)
         if validation_error:
             return validation_error
-        
+
         # Trim whitespace
         task = task.strip()
-        
+        tags = tags or []
+
         active = self.storage.load_active_session()
-        
+
         if active:
             return f"❌ Already tracking: {active['task']}\nStop current session first."
-        
+
         start_time = datetime.now().isoformat()
-        self.storage.save_active_session(task, start_time)
-        return f"✓ Session started: {task}"
+        self.storage.save_active_session(task, start_time, tags)
+
+        tag_str = f" [{', '.join(tags)}]" if tags else ""
+        return f"✓ Session started: {task}{tag_str}"
     
     def stop(self) -> str:
         """Stop the current tracking session."""
@@ -73,81 +76,95 @@ class TimeTracker:
         if duration.total_seconds() > 86400 * 7:  # More than 7 days
             return "⚠️  Warning: Session longer than 7 days. Did you forget to stop? Session not saved."
         
+        tags = active.get('tags', [])
         self.storage.save_completed_session(
             task=active['task'],
             start_time=active['start_time'],
             end_time=end_time.isoformat(),
-            duration_seconds=int(duration.total_seconds())
+            duration_seconds=int(duration.total_seconds()),
+            tags=tags
         )
-        
+
         self.storage.clear_active_session()
-        
+
         hours, remainder = divmod(int(duration.total_seconds()), 3600)
         minutes, _ = divmod(remainder, 60)
-        
-        return f"✓ Session stopped: {active['task']}\nDuration: {hours}h {minutes}m"
+
+        tag_str = f" [{', '.join(tags)}]" if tags else ""
+        return f"✓ Session stopped: {active['task']}{tag_str}\nDuration: {hours}h {minutes}m"
     
     def status(self) -> str:
         """Show current tracking status."""
         active = self.storage.load_active_session()
-        
+
         if not active:
             return "No active session"
-        
+
         try:
             start_time = datetime.fromisoformat(active['start_time'])
         except (ValueError, KeyError):
             return "❌ Error: Active session has invalid data"
-        
+
         elapsed = datetime.now() - start_time
-        
+
         hours, remainder = divmod(int(elapsed.total_seconds()), 3600)
         minutes, _ = divmod(remainder, 60)
-        
-        return f"📍 Tracking: {active['task']}\nElapsed: {hours}h {minutes}m"
+
+        tags = active.get('tags', [])
+        tag_str = f"\nTags: {', '.join(tags)}" if tags else ""
+        return f"📍 Tracking: {active['task']}\nElapsed: {hours}h {minutes}m{tag_str}"
     
-    def report(self, date: Optional[str] = None) -> str:
+    def report(self, date: Optional[str] = None, tag: Optional[str] = None) -> str:
         """Generate report for specified date (defaults to today)."""
         history = self.storage.load_history()
-        
+
         if not history:
             return "No sessions recorded yet"
-        
+
         # Filter by date if specified
         target_date = date if date else datetime.now().date().isoformat()
-        
+
         filtered_sessions = []
         for session in history:
             try:
                 if session['start_time'].startswith(target_date):
+                    # Filter by tag if specified
+                    if tag:
+                        session_tags = session.get('tags', [])
+                        if tag not in session_tags:
+                            continue
                     filtered_sessions.append(session)
             except (KeyError, TypeError):
                 # Skip malformed sessions
                 continue
-        
+
         if not filtered_sessions:
-            return f"No sessions on {target_date}"
-        
+            tag_info = f" with tag '{tag}'" if tag else ""
+            return f"No sessions on {target_date}{tag_info}"
+
         total_seconds = sum(s.get('duration_seconds', 0) for s in filtered_sessions)
         total_hours, remainder = divmod(total_seconds, 3600)
         total_minutes, _ = divmod(remainder, 60)
-        
-        output = [f"📊 Report for {target_date}", "=" * 40]
-        
+
+        tag_info = f" [tag: {tag}]" if tag else ""
+        output = [f"📊 Report for {target_date}{tag_info}", "=" * 40]
+
         for session in filtered_sessions:
             try:
                 start = datetime.fromisoformat(session['start_time'])
                 hours, remainder = divmod(session['duration_seconds'], 3600)
                 minutes, _ = divmod(remainder, 60)
-                
+
+                session_tags = session.get('tags', [])
+                tag_str = f" [{', '.join(session_tags)}]" if session_tags else ""
                 output.append(
-                    f"{start.strftime('%H:%M')} | {session['task']} | {hours}h {minutes}m"
+                    f"{start.strftime('%H:%M')} | {session['task']}{tag_str} | {hours}h {minutes}m"
                 )
             except (ValueError, KeyError, TypeError):
                 # Skip malformed entries
                 output.append(f"[Corrupted entry - skipped]")
                 continue
-        
+
         output.append("=" * 40)
         output.append(f"Total: {total_hours}h {total_minutes}m")
 
@@ -155,7 +172,8 @@ class TimeTracker:
 
     def export_csv(self, output_file: Optional[str] = None,
                    start_date: Optional[str] = None,
-                   end_date: Optional[str] = None) -> str:
+                   end_date: Optional[str] = None,
+                   tag: Optional[str] = None) -> str:
         """
         Export sessions to CSV file.
 
@@ -163,6 +181,7 @@ class TimeTracker:
             output_file: Path to output CSV file (defaults to ./time_tracker_export.csv)
             start_date: Filter sessions from this date (YYYY-MM-DD format)
             end_date: Filter sessions until this date (YYYY-MM-DD format)
+            tag: Filter sessions by tag
 
         Returns:
             Success/error message
@@ -172,7 +191,7 @@ class TimeTracker:
         if not history:
             return "❌ No sessions to export"
 
-        # Filter by date range if specified
+        # Filter by date range and tag if specified
         filtered_sessions = []
         for session in history:
             try:
@@ -183,6 +202,12 @@ class TimeTracker:
                     continue
                 if end_date and session_date > end_date:
                     continue
+
+                # Check tag filter
+                if tag:
+                    session_tags = session.get('tags', [])
+                    if tag not in session_tags:
+                        continue
 
                 filtered_sessions.append(session)
             except (KeyError, TypeError, IndexError):
@@ -205,7 +230,7 @@ class TimeTracker:
             # Write CSV
             with open(output_path, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.DictWriter(f, fieldnames=[
-                    'task', 'start_time', 'end_time', 'duration_hours', 'duration_minutes'
+                    'task', 'start_time', 'end_time', 'duration_hours', 'duration_minutes', 'tags'
                 ])
                 writer.writeheader()
 
@@ -213,13 +238,15 @@ class TimeTracker:
                     try:
                         hours, remainder = divmod(session['duration_seconds'], 3600)
                         minutes, _ = divmod(remainder, 60)
+                        session_tags = session.get('tags', [])
 
                         writer.writerow({
                             'task': session['task'],
                             'start_time': session['start_time'],
                             'end_time': session['end_time'],
                             'duration_hours': hours,
-                            'duration_minutes': minutes
+                            'duration_minutes': minutes,
+                            'tags': ', '.join(session_tags)
                         })
                     except (KeyError, TypeError):
                         # Skip malformed entries
@@ -473,10 +500,11 @@ def cli(ctx):
 
 @cli.command()
 @click.argument('task')
-def start(task):
+@click.option('--tag', '-t', multiple=True, help='Add tag to session (can use multiple times)')
+def start(task, tag):
     """Start tracking a task."""
     tracker = TimeTracker()
-    click.echo(tracker.start(task))
+    click.echo(tracker.start(task, tags=list(tag) if tag else None))
 
 
 @cli.command()
@@ -497,8 +525,9 @@ def status():
 @click.option('--date', default=None, help='Date in YYYY-MM-DD format')
 @click.option('--week', 'report_type', flag_value='week', help='Show weekly report')
 @click.option('--month', 'report_type', flag_value='month', help='Show monthly report')
+@click.option('--tag', '-t', default=None, help='Filter by tag')
 @click.argument('period', required=False)
-def report(date, report_type, period):
+def report(date, report_type, period, tag):
     """Show report for date/week/month (defaults to today)."""
     tracker = TimeTracker()
 
@@ -507,17 +536,18 @@ def report(date, report_type, period):
     elif report_type == 'month':
         click.echo(tracker.report_monthly(period))
     else:
-        click.echo(tracker.report(date))
+        click.echo(tracker.report(date, tag=tag))
 
 
 @cli.command()
 @click.option('--output', '-o', default=None, help='Output CSV file path')
 @click.option('--start-date', default=None, help='Start date (YYYY-MM-DD)')
 @click.option('--end-date', default=None, help='End date (YYYY-MM-DD)')
-def export(output, start_date, end_date):
+@click.option('--tag', '-t', default=None, help='Filter by tag')
+def export(output, start_date, end_date, tag):
     """Export sessions to CSV file."""
     tracker = TimeTracker()
-    click.echo(tracker.export_csv(output, start_date, end_date))
+    click.echo(tracker.export_csv(output, start_date, end_date, tag=tag))
 
 
 @cli.command()
@@ -534,6 +564,19 @@ def tui(simple):
         except Exception:
             # Fallback to simple mode on error
             run_tui_simple()
+
+
+@cli.command()
+@click.option('--setup', is_flag=True, help='Configure bot token and settings')
+@click.option('--token', default=None, help='Bot token (overrides config)')
+def bot(setup, token):
+    """Run Telegram bot with reminders."""
+    from .telegram_bot import run_bot, setup_bot
+
+    if setup:
+        setup_bot()
+    else:
+        run_bot(token)
 
 
 if __name__ == '__main__':

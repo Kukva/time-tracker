@@ -441,12 +441,26 @@ def run_tui_command(tracker, command, command_result, temp_dir, tui_result):
         if cmd == "start" and len(parts) > 2:
             match = re.search(r"['\"](.+?)['\"]", command)
             task = match.group(1) if match else parts[2].strip("'\"")
-            command_result['output'] = tracker.start(task)
+
+            # Extract tags
+            tags = []
+            for i, part in enumerate(parts):
+                if part == "--tag" and i + 1 < len(parts):
+                    tags.append(parts[i + 1])
+
+            command_result['output'] = tracker.start(task, tags=tags if tags else None)
         elif cmd == "stop":
             command_result['output'] = tracker.stop()
         elif cmd == "status":
             command_result['output'] = tracker.status()
         elif cmd == "report":
+            # Extract tag filter
+            tag = None
+            if "--tag" in parts:
+                idx = parts.index("--tag")
+                if idx + 1 < len(parts):
+                    tag = parts[idx + 1]
+
             if "--week" in parts:
                 idx = parts.index("--week")
                 week_start = parts[idx + 1] if idx + 1 < len(parts) and not parts[idx + 1].startswith("-") else None
@@ -456,11 +470,12 @@ def run_tui_command(tracker, command, command_result, temp_dir, tui_result):
                 month = parts[idx + 1] if idx + 1 < len(parts) and not parts[idx + 1].startswith("-") else None
                 command_result['output'] = tracker.report_monthly(month)
             else:
-                command_result['output'] = tracker.report()
+                command_result['output'] = tracker.report(tag=tag)
         elif cmd == "export":
             output_file = None
             start_date = None
             end_date = None
+            tag = None
 
             if "-o" in parts:
                 idx = parts.index("-o")
@@ -474,11 +489,16 @@ def run_tui_command(tracker, command, command_result, temp_dir, tui_result):
                 idx = parts.index("--end-date")
                 end_date = parts[idx + 1]
 
+            if "--tag" in parts:
+                idx = parts.index("--tag")
+                if idx + 1 < len(parts):
+                    tag = parts[idx + 1]
+
             if not output_file:
                 output_file = os.path.join(temp_dir, "time_tracker_export.csv")
 
             command_result['csv_path'] = output_file
-            command_result['output'] = tracker.export_csv(output_file, start_date, end_date)
+            command_result['output'] = tracker.export_csv(output_file, start_date, end_date, tag=tag)
 
     return command_result
 
@@ -814,3 +834,71 @@ def receive_command_list(bot_result):
     """Check command list received."""
     msg = bot_result['message']
     assert "/start" in msg or "/stop" in msg or "command" in msg.lower()
+
+
+# ============ TAGS STEPS ============
+
+@given("I have sessions with different tags")
+def have_sessions_with_tags(tracker):
+    """Create sessions with different tags."""
+    today = datetime.now().date().isoformat()
+    tracker.storage.save_completed_session(
+        task="work task",
+        start_time=f"{today}T09:00:00",
+        end_time=f"{today}T12:00:00",
+        duration_seconds=10800,
+        tags=["work"]
+    )
+    tracker.storage.save_completed_session(
+        task="client task",
+        start_time=f"{today}T14:00:00",
+        end_time=f"{today}T16:00:00",
+        duration_seconds=7200,
+        tags=["client", "billable"]
+    )
+    tracker.storage.save_completed_session(
+        task="personal task",
+        start_time=f"{today}T18:00:00",
+        end_time=f"{today}T19:00:00",
+        duration_seconds=3600,
+        tags=["personal"]
+    )
+
+
+@then(parsers.parse('session should have tag "{tag}"'))
+def session_has_tag(tracker, tag):
+    """Verify session has specific tag."""
+    active = tracker.storage.load_active_session()
+    assert active is not None
+    assert tag in active.get('tags', [])
+
+
+@then(parsers.parse('session should have tags "{tags}"'))
+def session_has_tags(tracker, tags):
+    """Verify session has multiple tags."""
+    active = tracker.storage.load_active_session()
+    assert active is not None
+    expected_tags = [t.strip() for t in tags.split(',')]
+    session_tags = active.get('tags', [])
+    for tag in expected_tags:
+        assert tag in session_tags
+
+
+@then(parsers.parse('I should only see sessions with tag "{tag}"'))
+def only_sessions_with_tag(command_result, tag):
+    """Verify only tagged sessions are shown."""
+    output = command_result['output']
+    # The filtered tag should appear, others should not
+    assert "work task" in output
+    assert "personal task" not in output
+
+
+@then(parsers.parse('CSV should only contain sessions with tag "{tag}"'))
+def csv_only_tagged(command_result, tag):
+    """Verify CSV only contains tagged sessions."""
+    csv_path = command_result.get('csv_path')
+    if csv_path:
+        with open(csv_path, 'r') as f:
+            content = f.read()
+        assert tag in content
+        assert "personal" not in content

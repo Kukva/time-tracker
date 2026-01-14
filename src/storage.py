@@ -13,9 +13,9 @@ class Storage:
         self.active_file = self.data_dir / "active.json"
         self.history_file = self.data_dir / "sessions.json"
     
-    def save_active_session(self, task: str, start_time: str) -> None:
+    def save_active_session(self, task: str, start_time: str, tags: List[str] = None) -> None:
         """Save currently active session."""
-        data = {"task": task, "start_time": start_time}
+        data = {"task": task, "start_time": start_time, "tags": tags or []}
         with open(self.active_file, 'w') as f:
             json.dump(data, f, indent=2)
     
@@ -44,14 +44,16 @@ class Storage:
         if self.active_file.exists():
             self.active_file.unlink()
     
-    def save_completed_session(self, task: str, start_time: str, 
-                               end_time: str, duration_seconds: int) -> None:
+    def save_completed_session(self, task: str, start_time: str,
+                               end_time: str, duration_seconds: int,
+                               tags: List[str] = None) -> None:
         """Append completed session to history."""
         session = {
             "task": task,
             "start_time": start_time,
             "end_time": end_time,
-            "duration_seconds": duration_seconds
+            "duration_seconds": duration_seconds,
+            "tags": tags or []
         }
         
         history = self.load_history()

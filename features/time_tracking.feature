@@ -195,3 +195,25 @@ Feature: Track work time
     Given the Telegram bot is configured
     When I send "/help" to the bot
     Then I should receive list of available commands
+
+  # ============ TAGS SCENARIOS ============
+
+  Scenario: Start task with single tag
+    Given I am not currently tracking time
+    When I run "track start 'coding' --tag work"
+    Then session should have tag "work"
+
+  Scenario: Start task with multiple tags
+    Given I am not currently tracking time
+    When I run "track start 'meeting' --tag work --tag client"
+    Then session should have tags "work, client"
+
+  Scenario: Filter report by tag
+    Given I have sessions with different tags
+    When I run "track report --tag work"
+    Then I should only see sessions with tag "work"
+
+  Scenario: Export filtered by tag
+    Given I have sessions with different tags
+    When I run "track export --tag client -o tagged.csv"
+    Then CSV should only contain sessions with tag "client"

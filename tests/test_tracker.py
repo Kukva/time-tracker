@@ -527,3 +527,112 @@ def test_monthly_report_shows_month_name(tracker):
     result = tracker.report_monthly(month="2026-01")
 
     assert "January" in result or "2026-01" in result
+
+
+# ============ TAGS TESTS ============
+
+def test_start_with_single_tag(tracker):
+    """Test starting session with a single tag."""
+    result = tracker.start("coding", tags=["work"])
+
+    assert "Session started" in result
+
+    active = tracker.storage.load_active_session()
+    assert active is not None
+    assert active['tags'] == ["work"]
+
+
+def test_start_with_multiple_tags(tracker):
+    """Test starting session with multiple tags."""
+    result = tracker.start("meeting", tags=["work", "client"])
+
+    assert "Session started" in result
+
+    active = tracker.storage.load_active_session()
+    assert set(active['tags']) == {"work", "client"}
+
+
+def test_start_without_tags(tracker):
+    """Test starting session without tags defaults to empty list."""
+    result = tracker.start("coding")
+
+    active = tracker.storage.load_active_session()
+    assert active['tags'] == []
+
+
+def test_stop_saves_tags_to_history(tracker):
+    """Test that tags are preserved when session is saved to history."""
+    tracker.start("task", tags=["project", "urgent"])
+    tracker.stop()
+
+    history = tracker.storage.load_history()
+    assert len(history) == 1
+    assert set(history[0]['tags']) == {"project", "urgent"}
+
+
+def test_report_filter_by_tag(tracker):
+    """Test filtering report by tag."""
+    today = datetime.now().date().isoformat()
+
+    tracker.storage.save_completed_session(
+        task="work task",
+        start_time=f"{today}T09:00:00",
+        end_time=f"{today}T12:00:00",
+        duration_seconds=10800,
+        tags=["work"]
+    )
+    tracker.storage.save_completed_session(
+        task="personal task",
+        start_time=f"{today}T14:00:00",
+        end_time=f"{today}T15:00:00",
+        duration_seconds=3600,
+        tags=["personal"]
+    )
+
+    result = tracker.report(tag="work")
+
+    assert "work task" in result
+    assert "personal task" not in result
+
+
+def test_export_filter_by_tag(tracker, tmp_path):
+    """Test exporting sessions filtered by tag."""
+    today = datetime.now().date().isoformat()
+
+    tracker.storage.save_completed_session(
+        task="client work",
+        start_time=f"{today}T09:00:00",
+        end_time=f"{today}T12:00:00",
+        duration_seconds=10800,
+        tags=["client", "billable"]
+    )
+    tracker.storage.save_completed_session(
+        task="internal work",
+        start_time=f"{today}T14:00:00",
+        end_time=f"{today}T15:00:00",
+        duration_seconds=3600,
+        tags=["internal"]
+    )
+
+    output_file = tmp_path / "tagged_export.csv"
+    result = tracker.export_csv(str(output_file), tag="client")
+
+    assert "Exported 1 sessions" in result
+
+    import csv
+    with open(output_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    assert len(rows) == 1
+    assert rows[0]['task'] == "client work"
+    assert "client" in rows[0]['tags']
+
+
+def test_status_shows_tags(tracker):
+    """Test that status displays tags."""
+    tracker.start("coding", tags=["work", "python"])
+    result = tracker.status()
+
+    assert "work" in result
+    assert "python" in result
