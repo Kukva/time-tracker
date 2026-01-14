@@ -394,10 +394,81 @@ class TimeTracker:
         return "\n".join(output)
 
 
-@click.group()
-def cli():
-    """Simple time tracking CLI tool."""
-    pass
+def interactive_mode():
+    """Run interactive menu for time tracking."""
+    tracker = TimeTracker()
+
+    while True:
+        # Show current status
+        click.echo("\n" + "=" * 40)
+        click.echo("TIME TRACKER")
+        click.echo("=" * 40)
+
+        active = tracker.storage.load_active_session()
+        if active:
+            start_time = datetime.fromisoformat(active['start_time'])
+            elapsed = datetime.now() - start_time
+            hours, remainder = divmod(int(elapsed.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            click.echo(f"Currently tracking: {active['task']}")
+            click.echo(f"Elapsed: {hours}h {minutes}m {seconds}s")
+        else:
+            click.echo("Not tracking any task")
+
+        click.echo("\n[1] Start new task")
+        click.echo("[2] Stop current task")
+        click.echo("[3] Show status")
+        click.echo("[4] Daily report")
+        click.echo("[5] Weekly report")
+        click.echo("[6] Monthly report")
+        click.echo("[7] Export to CSV")
+        click.echo("[0] Exit")
+
+        choice = click.prompt("\nSelect option", type=str, default="0")
+
+        if choice == "1":
+            task = click.prompt("Task name")
+            click.echo(tracker.start(task))
+        elif choice == "2":
+            click.echo(tracker.stop())
+        elif choice == "3":
+            click.echo(tracker.status())
+        elif choice == "4":
+            date = click.prompt("Date (YYYY-MM-DD, or press Enter for today)", default="", show_default=False)
+            click.echo(tracker.report(date if date else None))
+        elif choice == "5":
+            week = click.prompt("Week start date (YYYY-MM-DD, or press Enter for current)", default="", show_default=False)
+            click.echo(tracker.report_weekly(week if week else None))
+        elif choice == "6":
+            month = click.prompt("Month (YYYY-MM, or press Enter for current)", default="", show_default=False)
+            click.echo(tracker.report_monthly(month if month else None))
+        elif choice == "7":
+            output = click.prompt("Output file", default="time_tracker_export.csv")
+            start_date = click.prompt("Start date filter (YYYY-MM-DD, or press Enter to skip)", default="", show_default=False)
+            end_date = click.prompt("End date filter (YYYY-MM-DD, or press Enter to skip)", default="", show_default=False)
+            click.echo(tracker.export_csv(
+                output,
+                start_date if start_date else None,
+                end_date if end_date else None
+            ))
+        elif choice == "0":
+            click.echo("Goodbye!")
+            break
+        else:
+            click.echo("Invalid option, try again")
+
+        click.pause()
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
+    """Simple time tracking CLI tool.
+
+    Run without arguments for interactive mode.
+    """
+    if ctx.invoked_subcommand is None:
+        interactive_mode()
 
 
 @cli.command()
