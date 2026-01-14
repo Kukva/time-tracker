@@ -59,3 +59,39 @@ Feature: Track work time
     When I run "track export"
     Then I should see error "No sessions to export"
     And no CSV file should be created
+
+  Scenario: View weekly report
+    Given I have sessions from current week
+    When I run "track report --week"
+    Then I should see all sessions from Monday to Sunday
+    And I should see total hours for the week
+    And sessions should be grouped by day
+
+  Scenario: View specific week report
+    Given I have sessions from multiple weeks
+    When I run "track report --week 2026-01-06"
+    Then I should see sessions for week starting 2026-01-06
+    And I should see 7 days in the report
+
+  Scenario: Weekly report with no sessions
+    Given I have no sessions this week
+    When I run "track report --week"
+    Then I should see "No sessions recorded for this week"
+
+  Scenario: View monthly report
+    Given I have sessions from current month
+    When I run "track report --month"
+    Then I should see all sessions from the month
+    And I should see total hours for the month
+    And sessions should be grouped by day
+
+  Scenario: View specific month report
+    Given I have sessions from multiple months
+    When I run "track report --month 2026-01"
+    Then I should see sessions for January 2026
+    And I should see month name in header
+
+  Scenario: Monthly report with no sessions
+    Given I have no sessions this month
+    When I run "track report --month"
+    Then I should see "No sessions recorded for this month"

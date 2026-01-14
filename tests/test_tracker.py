@@ -371,3 +371,159 @@ def test_export_csv_skips_corrupted_sessions(tracker, tmp_path):
 
     assert len(rows) == 1
     assert rows[0]['task'] == "valid task"
+
+
+# ============ WEEKLY REPORT TESTS ============
+
+def test_weekly_report_current_week(tracker):
+    """Test weekly report for current week."""
+    from datetime import datetime, timedelta
+
+    # Get current week's Monday
+    today = datetime.now()
+    monday = today - timedelta(days=today.weekday())
+
+    # Add sessions across the week
+    for i in range(5):  # Mon-Fri
+        day = monday + timedelta(days=i)
+        date_str = day.date().isoformat()
+        tracker.storage.save_completed_session(
+            task=f"work day {i+1}",
+            start_time=f"{date_str}T09:00:00",
+            end_time=f"{date_str}T17:00:00",
+            duration_seconds=28800  # 8 hours
+        )
+
+    result = tracker.report_weekly()
+
+    assert "Week" in result
+    assert "work day 1" in result
+    assert "work day 5" in result
+    assert "40h" in result  # 5 days * 8 hours
+
+
+def test_weekly_report_specific_week(tracker):
+    """Test weekly report for a specific week."""
+    # Add sessions in week of 2026-01-05 (Monday)
+    tracker.storage.save_completed_session(
+        task="week 1 task",
+        start_time="2026-01-06T10:00:00",  # Tuesday
+        end_time="2026-01-06T12:00:00",
+        duration_seconds=7200  # 2 hours
+    )
+    # Add session in different week
+    tracker.storage.save_completed_session(
+        task="week 2 task",
+        start_time="2026-01-13T10:00:00",  # Next Monday
+        end_time="2026-01-13T11:00:00",
+        duration_seconds=3600
+    )
+
+    result = tracker.report_weekly(week_start="2026-01-06")
+
+    assert "week 1 task" in result
+    assert "week 2 task" not in result
+    assert "2h" in result
+
+
+def test_weekly_report_no_sessions(tracker):
+    """Test weekly report when no sessions exist."""
+    result = tracker.report_weekly()
+
+    assert "No sessions recorded" in result
+
+
+def test_weekly_report_groups_by_day(tracker):
+    """Test that weekly report groups sessions by day."""
+    # Add multiple sessions on same day
+    tracker.storage.save_completed_session(
+        task="morning work",
+        start_time="2026-01-14T09:00:00",
+        end_time="2026-01-14T12:00:00",
+        duration_seconds=10800  # 3 hours
+    )
+    tracker.storage.save_completed_session(
+        task="afternoon work",
+        start_time="2026-01-14T14:00:00",
+        end_time="2026-01-14T17:00:00",
+        duration_seconds=10800  # 3 hours
+    )
+
+    result = tracker.report_weekly()
+
+    assert "2026-01-14" in result
+    assert "morning work" in result
+    assert "afternoon work" in result
+    assert "6h" in result  # Total for the day
+
+
+# ============ MONTHLY REPORT TESTS ============
+
+def test_monthly_report_current_month(tracker):
+    """Test monthly report for current month."""
+    from datetime import datetime
+
+    today = datetime.now()
+    month_str = today.strftime("%Y-%m")
+
+    # Add sessions in current month
+    for day in [5, 10, 15]:
+        date_str = f"{month_str}-{day:02d}"
+        tracker.storage.save_completed_session(
+            task=f"work day {day}",
+            start_time=f"{date_str}T09:00:00",
+            end_time=f"{date_str}T17:00:00",
+            duration_seconds=28800  # 8 hours
+        )
+
+    result = tracker.report_monthly()
+
+    assert "Month" in result or month_str in result
+    assert "work day 5" in result
+    assert "work day 15" in result
+    assert "24h" in result  # 3 days * 8 hours
+
+
+def test_monthly_report_specific_month(tracker):
+    """Test monthly report for a specific month."""
+    # Add sessions in January 2026
+    tracker.storage.save_completed_session(
+        task="january task",
+        start_time="2026-01-15T10:00:00",
+        end_time="2026-01-15T14:00:00",
+        duration_seconds=14400  # 4 hours
+    )
+    # Add session in different month
+    tracker.storage.save_completed_session(
+        task="february task",
+        start_time="2026-02-10T10:00:00",
+        end_time="2026-02-10T12:00:00",
+        duration_seconds=7200
+    )
+
+    result = tracker.report_monthly(month="2026-01")
+
+    assert "january task" in result
+    assert "february task" not in result
+    assert "4h" in result
+
+
+def test_monthly_report_no_sessions(tracker):
+    """Test monthly report when no sessions exist."""
+    result = tracker.report_monthly()
+
+    assert "No sessions recorded" in result
+
+
+def test_monthly_report_shows_month_name(tracker):
+    """Test that monthly report shows month name."""
+    tracker.storage.save_completed_session(
+        task="test task",
+        start_time="2026-01-15T10:00:00",
+        end_time="2026-01-15T11:00:00",
+        duration_seconds=3600
+    )
+
+    result = tracker.report_monthly(month="2026-01")
+
+    assert "January" in result or "2026-01" in result

@@ -230,6 +230,169 @@ class TimeTracker:
         except (IOError, PermissionError) as e:
             return f"❌ Error writing CSV file: {e}"
 
+    def report_weekly(self, week_start: Optional[str] = None) -> str:
+        """
+        Show weekly report.
+
+        Args:
+            week_start: Start date of week in YYYY-MM-DD format (defaults to current week)
+
+        Returns:
+            Formatted weekly report
+        """
+        from collections import defaultdict
+
+        history = self.storage.load_history()
+
+        if not history:
+            return "No sessions recorded for this week."
+
+        # Determine week range
+        if week_start:
+            start_date = datetime.fromisoformat(week_start).date()
+        else:
+            today = datetime.now().date()
+            start_date = today - timedelta(days=today.weekday())  # Monday
+
+        end_date = start_date + timedelta(days=6)  # Sunday
+
+        # Filter sessions for the week
+        weekly_sessions = defaultdict(list)
+        for session in history:
+            try:
+                session_date = datetime.fromisoformat(session['start_time'][:10]).date()
+
+                if start_date <= session_date <= end_date:
+                    weekly_sessions[session_date].append(session)
+            except (KeyError, ValueError, TypeError):
+                continue
+
+        if not weekly_sessions:
+            return "No sessions recorded for this week."
+
+        # Build report
+        output = []
+        output.append("=" * 40)
+        output.append(f"Week: {start_date} to {end_date}")
+        output.append("=" * 40)
+
+        total_seconds = 0
+        for date in sorted(weekly_sessions.keys()):
+            day_name = date.strftime("%A")
+            output.append(f"\n{day_name}, {date}:")
+
+            day_seconds = 0
+            for session in weekly_sessions[date]:
+                try:
+                    duration = session['duration_seconds']
+                    hours, remainder = divmod(duration, 3600)
+                    minutes, _ = divmod(remainder, 60)
+
+                    task = session['task']
+                    output.append(f"  {task}: {hours}h {minutes}m")
+
+                    day_seconds += duration
+                    total_seconds += duration
+                except (KeyError, TypeError):
+                    continue
+
+            # Day total
+            day_hours, day_remainder = divmod(day_seconds, 3600)
+            day_minutes, _ = divmod(day_remainder, 60)
+            output.append(f"  Day total: {day_hours}h {day_minutes}m")
+
+        # Week total
+        total_hours, total_remainder = divmod(total_seconds, 3600)
+        total_minutes, _ = divmod(total_remainder, 60)
+        output.append("=" * 40)
+        output.append(f"Week Total: {total_hours}h {total_minutes}m")
+
+        return "\n".join(output)
+
+    def report_monthly(self, month: Optional[str] = None) -> str:
+        """
+        Show monthly report.
+
+        Args:
+            month: Month in YYYY-MM format (defaults to current month)
+
+        Returns:
+            Formatted monthly report
+        """
+        from collections import defaultdict
+        import calendar
+
+        history = self.storage.load_history()
+
+        if not history:
+            return "No sessions recorded for this month."
+
+        # Determine month range
+        if month:
+            year, month_num = map(int, month.split('-'))
+            start_date = datetime(year, month_num, 1).date()
+        else:
+            today = datetime.now().date()
+            start_date = datetime(today.year, today.month, 1).date()
+
+        # Calculate last day of month
+        last_day = calendar.monthrange(start_date.year, start_date.month)[1]
+        end_date = datetime(start_date.year, start_date.month, last_day).date()
+
+        # Filter sessions for the month
+        monthly_sessions = defaultdict(list)
+        for session in history:
+            try:
+                session_date = datetime.fromisoformat(session['start_time'][:10]).date()
+
+                if start_date <= session_date <= end_date:
+                    monthly_sessions[session_date].append(session)
+            except (KeyError, ValueError, TypeError):
+                continue
+
+        if not monthly_sessions:
+            return "No sessions recorded for this month."
+
+        # Build report
+        month_name = start_date.strftime("%B %Y")
+        output = []
+        output.append("=" * 40)
+        output.append(f"Month: {month_name}")
+        output.append("=" * 40)
+
+        total_seconds = 0
+        for date in sorted(monthly_sessions.keys()):
+            day_name = date.strftime("%A")
+            output.append(f"\n{day_name}, {date}:")
+
+            day_seconds = 0
+            for session in monthly_sessions[date]:
+                try:
+                    duration = session['duration_seconds']
+                    hours, remainder = divmod(duration, 3600)
+                    minutes, _ = divmod(remainder, 60)
+
+                    task = session['task']
+                    output.append(f"  {task}: {hours}h {minutes}m")
+
+                    day_seconds += duration
+                    total_seconds += duration
+                except (KeyError, TypeError):
+                    continue
+
+            # Day total
+            day_hours, day_remainder = divmod(day_seconds, 3600)
+            day_minutes, _ = divmod(day_remainder, 60)
+            output.append(f"  Day total: {day_hours}h {day_minutes}m")
+
+        # Month total
+        total_hours, total_remainder = divmod(total_seconds, 3600)
+        total_minutes, _ = divmod(total_remainder, 60)
+        output.append("=" * 40)
+        output.append(f"Month Total: {total_hours}h {total_minutes}m")
+
+        return "\n".join(output)
+
 
 @click.group()
 def cli():
@@ -261,10 +424,19 @@ def status():
 
 @cli.command()
 @click.option('--date', default=None, help='Date in YYYY-MM-DD format')
-def report(date):
-    """Show report for date (defaults to today)."""
+@click.option('--week', 'report_type', flag_value='week', help='Show weekly report')
+@click.option('--month', 'report_type', flag_value='month', help='Show monthly report')
+@click.argument('period', required=False)
+def report(date, report_type, period):
+    """Show report for date/week/month (defaults to today)."""
     tracker = TimeTracker()
-    click.echo(tracker.report(date))
+
+    if report_type == 'week':
+        click.echo(tracker.report_weekly(period))
+    elif report_type == 'month':
+        click.echo(tracker.report_monthly(period))
+    else:
+        click.echo(tracker.report(date))
 
 
 @cli.command()
