@@ -1,16 +1,64 @@
-# Future Improvements
+# Project Roadmap
 
-## High Priority
-- [ ] Export sessions to CSV (#8)
-- [ ] Task name validation enhancements (#9)
-- [ ] Weekly/monthly reports
+## Completed Features
 
-## Nice to Have
-- [ ] Telegram bot notifications (#10)
-- [ ] Visual charts (ASCII art)
-- [ ] Config file support
+### Core Functionality
+- [x] Basic commands: start, stop, status, report (#3, #4, #5)
+- [x] Task name validation (#9, #11)
+- [x] Corrupted JSON handling (#11)
+- [x] CSV export with date filtering (#8)
+- [x] Weekly reports (#2)
+- [x] Monthly reports (#2)
 
-## Technical Debt
-- [ ] Migrate from JSON to SQLite
-- [ ] Add proper logging framework
+### User Interface
+- [x] Interactive CLI mode
+- [x] **Rich TUI Dashboard** with live timer (#13, #14, #15)
+  - Live updating timer display
+  - Color-coded status panels
+  - Today's sessions summary
+  - Keyboard navigation
+
+### Testing & Quality
+- [x] Unit tests (37 tests)
+- [x] BDD tests with pytest-bdd (15 scenarios)
+- [x] TUI component tests (16 tests)
+- [x] Test coverage >80%
+
+## In Progress
+
+*No items currently in progress*
+
+## Backlog
+
+### High Priority
 - [ ] CI/CD with GitHub Actions
+- [ ] Pomodoro timer mode
+
+### Nice to Have
+- [ ] Telegram bot notifications (#10)
+- [ ] Desktop notifications
+- [ ] Data visualization / charts
+- [ ] Config file support (.timetracker.yml)
+
+### Technical Debt
+- [ ] SQLite migration (#12)
+- [ ] Logging framework (#11, #12)
+- [ ] File permission checks (#11)
+- [ ] Timezone handling (#12)
+- [ ] Better code comments
+
+## Issue References
+
+| Issue | Title | Status |
+|-------|-------|--------|
+| #1 | Need time tracking tool | Open (meta) |
+| #2 | MVP Feature Set | Closed |
+| #3-5 | Core commands | Closed |
+| #6 | Test suite | Closed |
+| #7 | AI code review | Closed |
+| #8 | CSV export | Closed |
+| #9 | Task validation | Closed |
+| #10 | Telegram integration | Open |
+| #11 | Security improvements | Open (partial) |
+| #12 | Medium/Low priority | Closed |
+| #13-15 | Rich TUI | Closed |

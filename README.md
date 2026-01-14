@@ -4,7 +4,7 @@ Simple CLI time tracking tool for freelancers. Built with TDD/BDD methodology.
 
 ## Project Status
 
-**Test Coverage: 85% (52 tests: 37 unit + 15 BDD)**
+**Test Coverage: 85% (68+ tests: 37 unit + 15 BDD + 16 TUI)**
 
 See [GitHub Issues](../../issues) for full project history and roadmap.
 
@@ -18,6 +18,7 @@ See [GitHub Issues](../../issues) for full project history and roadmap.
 - [x] Monthly reports (#2)
 - [x] BDD tests with pytest-bdd (step definitions)
 - [x] Interactive CLI mode
+- [x] **Rich TUI Dashboard** with live timer (#13, #14, #15)
 
 ### Open Issues (Backlog)
 - [ ] Telegram bot integration (#10)
@@ -30,7 +31,10 @@ See [GitHub Issues](../../issues) for full project history and roadmap.
 Losing billable hours due to forgetting to track time.
 
 ## Solution
-Minimal CLI with interactive mode: `track` for menu or `track <command>` for direct use
+Feature-rich CLI with multiple interfaces:
+- **TUI Dashboard** - Beautiful terminal UI with live timer (`track tui`)
+- **Interactive Menu** - Guided menu interface (`track`)
+- **Direct Commands** - Quick CLI commands (`track start/stop/...`)
 
 ## Installation
 ```bash
@@ -40,7 +44,18 @@ pip install -e .
 
 ## Usage
 
-### Interactive Mode
+### TUI Dashboard (Recommended)
+```bash
+track tui                       # Launch beautiful TUI dashboard
+track tui --simple              # Simple mode (cross-platform)
+```
+The TUI dashboard provides:
+- **Live timer** updating every second
+- Color-coded status (green=tracking, yellow=idle)
+- Today's sessions panel with totals
+- Keyboard shortcuts for all actions
+
+### Interactive Menu
 ```bash
 track                           # Launch interactive menu
 ```
